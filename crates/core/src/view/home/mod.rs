@@ -103,10 +103,11 @@ impl Home {
         let current_page = 0;
         let mut shelf_index = 2;
 
+        let library_name = context.settings.libraries[selected_library].name.clone();
         let top_bar = TopBar::new(rect![rect.min.x, rect.min.y,
                                         rect.max.x, rect.min.y + small_height - small_thickness],
                                   Event::Toggle(ViewId::SearchBar),
-                                  sort_method.title(),
+                                  library_name,
                                   context);
         children.push(Box::new(top_bar) as Box<dyn View>);
 
@@ -401,12 +402,13 @@ impl Home {
         shelf.update(&self.visible_books[index_lower..index_upper], hub, rq, context);
     }
 
-    fn update_top_bar(&mut self, search_visible: bool, rq: &mut RenderQueue) {
+    fn update_top_bar(&mut self, search_visible: bool, rq: &mut RenderQueue, context: &Context) {
         if let Some(index) = locate::<TopBar>(self) {
             let top_bar = self.children[index].as_mut().downcast_mut::<TopBar>().unwrap();
             let name = if search_visible { "back" } else { "search" };
             top_bar.update_root_icon(name, rq);
-            top_bar.update_title_label(&self.sort_method.title(), rq);
+            let library_name = &context.settings.libraries[context.settings.selected_library].name;
+            top_bar.update_title_label(library_name, rq);
         }
     }
 
@@ -738,7 +740,7 @@ impl Home {
                 self.refresh_visibles(false, true, hub, rq, context);
             }
 
-            self.update_top_bar(search_visible, rq);
+            self.update_top_bar(search_visible, rq, context);
 
             if search_visible {
                 rq.add(RenderData::new(self.child(self.shelf_index-1).id(), *self.child(self.shelf_index-1).rect(), UpdateMode::Partial));
@@ -834,48 +836,106 @@ impl Home {
             if let Some(false) = enable {
                 return;
             }
-            let entries = vec![EntryKind::RadioButton("Date Opened".to_string(),
-                                                      EntryId::Sort(SortMethod::Opened),
-                                                      self.sort_method == SortMethod::Opened),
-                               EntryKind::RadioButton("Date Added".to_string(),
+            let entries = vec![EntryKind::RadioButton("Date Added".to_string(),
                                                       EntryId::Sort(SortMethod::Added),
                                                       self.sort_method == SortMethod::Added),
-                               EntryKind::RadioButton("Status".to_string(),
-                                                      EntryId::Sort(SortMethod::Status),
-                                                      self.sort_method == SortMethod::Status),
-                               EntryKind::RadioButton("Progress".to_string(),
-                                                      EntryId::Sort(SortMethod::Progress),
-                                                      self.sort_method == SortMethod::Progress),
-                               EntryKind::RadioButton("Author".to_string(),
-                                                      EntryId::Sort(SortMethod::Author),
-                                                      self.sort_method == SortMethod::Author),
                                EntryKind::RadioButton("Title".to_string(),
                                                       EntryId::Sort(SortMethod::Title),
                                                       self.sort_method == SortMethod::Title),
-                               EntryKind::RadioButton("Year".to_string(),
-                                                      EntryId::Sort(SortMethod::Year),
-                                                      self.sort_method == SortMethod::Year),
-                               EntryKind::RadioButton("Series".to_string(),
-                                                      EntryId::Sort(SortMethod::Series),
-                                                      self.sort_method == SortMethod::Series),
-                               EntryKind::RadioButton("File Size".to_string(),
-                                                      EntryId::Sort(SortMethod::Size),
-                                                      self.sort_method == SortMethod::Size),
-                               EntryKind::RadioButton("File Type".to_string(),
-                                                      EntryId::Sort(SortMethod::Kind),
-                                                      self.sort_method == SortMethod::Kind),
-                               EntryKind::RadioButton("File Name".to_string(),
-                                                      EntryId::Sort(SortMethod::FileName),
-                                                      self.sort_method == SortMethod::FileName),
-                               EntryKind::RadioButton("File Path".to_string(),
-                                                      EntryId::Sort(SortMethod::FilePath),
-                                                      self.sort_method == SortMethod::FilePath),
-                               EntryKind::Separator,
-                               EntryKind::CheckBox("Reverse Order".to_string(),
-                                                   EntryId::ReverseOrder, self.reverse_order)];
+                               EntryKind::RadioButton("Author".to_string(),
+                                                      EntryId::Sort(SortMethod::Author),
+                                                      self.sort_method == SortMethod::Author)];
             let sort_menu = Menu::new(rect, ViewId::SortMenu, MenuKind::DropDown, entries, context);
             rq.add(RenderData::new(sort_menu.id(), *sort_menu.rect(), UpdateMode::Gui));
             self.children.push(Box::new(sort_menu) as Box<dyn View>);
+        }
+    }
+
+    fn toggle_title_menu(&mut self, rect: Rectangle, enable: Option<bool>, rq: &mut RenderQueue, context: &mut Context) {
+        if let Some(index) = locate_by_id(self, ViewId::TitleMenu) {
+            if let Some(true) = enable {
+                return;
+            }
+            rq.add(RenderData::expose(*self.child(index).rect(), UpdateMode::Gui));
+            self.children.remove(index);
+        } else {
+            if let Some(false) = enable {
+                return;
+            }
+
+            let selected_library = context.settings.selected_library;
+            let find_lib = |name: &str| -> Option<usize> {
+                context.settings.libraries.iter().position(|l| l.name == name)
+            };
+            let mut taxonomy_entries: Vec<EntryKind> = Vec::new();
+            if let Some(idx) = find_lib("STEM") {
+                let math_entries = vec![
+                    EntryKind::Command("Algebra".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Algebra"))),
+                    EntryKind::Command("Geometry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Geometry"))),
+                    EntryKind::Command("Calculus".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Calculus"))),
+                ];
+                let science_entries = vec![
+                    EntryKind::Command("Biology".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Biology"))),
+                    EntryKind::Command("Chemistry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Chemistry"))),
+                    EntryKind::Command("Physics".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Physics"))),
+                    EntryKind::Command("Earth Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Earth Science"))),
+                ];
+                let stem_entries = vec![
+                    EntryKind::RadioButton("STEM (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
+                    EntryKind::Separator,
+                    EntryKind::SubMenu("Mathematics".to_string(), math_entries),
+                    EntryKind::SubMenu("Science".to_string(), science_entries),
+                    EntryKind::Command("Engineering".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Engineering"))),
+                ];
+                taxonomy_entries.push(EntryKind::SubMenu("STEM".to_string(), stem_entries));
+            }
+            if let Some(idx) = find_lib("Humanities") {
+                let entries = vec![
+                    EntryKind::RadioButton("Humanities (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
+                    EntryKind::Separator,
+                    EntryKind::Command("Language Arts".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Language Arts"))),
+                    EntryKind::Command("History".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("History"))),
+                    EntryKind::Command("Social Studies".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Social Studies"))),
+                    EntryKind::Command("Political Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Political Science"))),
+                ];
+                taxonomy_entries.push(EntryKind::SubMenu("Humanities".to_string(), entries));
+            }
+            if let Some(idx) = find_lib("Enrichment") {
+                let entries = vec![
+                    EntryKind::RadioButton("Enrichment (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
+                    EntryKind::Separator,
+                    EntryKind::Command("Sangala Story Exchange".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Sangala Story Exchange"))),
+                    EntryKind::Command("Fiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Fiction"))),
+                    EntryKind::Command("Nonfiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Nonfiction"))),
+                ];
+                taxonomy_entries.push(EntryKind::SubMenu("Enrichment".to_string(), entries));
+            }
+            if let Some(idx) = find_lib("Resources") {
+                let entries = vec![
+                    EntryKind::RadioButton("Resources (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
+                    EntryKind::Separator,
+                    EntryKind::Command("How to Use the Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("How to Use the Reader"))),
+                ];
+                taxonomy_entries.push(EntryKind::SubMenu("Resources".to_string(), entries));
+            }
+            let sort_entries = vec![
+                EntryKind::RadioButton("Date Added".to_string(),
+                                       EntryId::Sort(SortMethod::Added),
+                                       self.sort_method == SortMethod::Added),
+                EntryKind::RadioButton("Title".to_string(),
+                                       EntryId::Sort(SortMethod::Title),
+                                       self.sort_method == SortMethod::Title),
+                EntryKind::RadioButton("Author".to_string(),
+                                       EntryId::Sort(SortMethod::Author),
+                                       self.sort_method == SortMethod::Author),
+            ];
+            let mut entries = taxonomy_entries;
+            entries.push(EntryKind::Separator);
+            entries.push(EntryKind::SubMenu("Sort by".to_string(), sort_entries));
+
+            let title_menu = Menu::new(rect, ViewId::TitleMenu, MenuKind::DropDown, entries, context);
+            rq.add(RenderData::new(title_menu.id(), *title_menu.rect(), UpdateMode::Gui));
+            self.children.push(Box::new(title_menu) as Box<dyn View>);
         }
     }
 
@@ -1173,7 +1233,7 @@ impl Home {
         if update {
             self.update_shelf(false, hub, rq, context);
             let search_visible = rlocate::<SearchBar>(self).is_some();
-            self.update_top_bar(search_visible, rq);
+            self.update_top_bar(search_visible, rq, context);
             self.update_bottom_bar(rq, context);
         }
     }
@@ -1212,14 +1272,14 @@ impl Home {
         if self.sort_method != library_settings.sort_method {
             self.sort_method = library_settings.sort_method;
             self.reverse_order = library_settings.sort_method.reverse_order();
-            update_top_bar = true;
         }
 
         context.library.sort(self.sort_method, self.reverse_order);
 
-        if update_top_bar {
+        // Always update the top bar to reflect the new library name
+        {
             let search_visible = rlocate::<SearchBar>(self).is_some();
-            self.update_top_bar(search_visible, rq);
+            self.update_top_bar(search_visible, rq, context);
         }
 
         if let Some(shelf) = self.children[self.shelf_index].as_mut().downcast_mut::<Shelf>() {
@@ -1469,7 +1529,7 @@ impl View for Home {
                 true
             },
             Event::ToggleNear(ViewId::TitleMenu, rect) => {
-                self.toggle_sort_menu(rect, None, rq, context);
+                self.toggle_title_menu(rect, None, rq, context);
                 true
             },
             Event::ToggleBookMenu(rect, index) => {
@@ -1504,6 +1564,10 @@ impl View for Home {
                 self.toggle_sort_menu(Rectangle::default(), Some(false), rq, context);
                 true
             },
+            Event::Close(ViewId::TitleMenu) => {
+                self.toggle_title_menu(Rectangle::default(), Some(false), rq, context);
+                true
+            },
             Event::Close(ViewId::LibraryMenu) => {
                 self.toggle_library_menu(Rectangle::default(), Some(false), rq, context);
                 true
@@ -1533,6 +1597,14 @@ impl View for Home {
             },
             Event::Select(EntryId::LoadLibrary(index)) => {
                 self.load_library(index, hub, rq, context);
+                true
+            },
+            Event::Select(EntryId::LoadLibraryAndSelectDirectory(index, ref path)) => {
+                if index != context.settings.selected_library {
+                    self.load_library(index, hub, rq, context);
+                }
+                let full_path = context.library.home.join(path);
+                self.select_directory(&full_path, hub, rq, context);
                 true
             },
             Event::Select(EntryId::Import) => {

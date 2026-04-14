@@ -48,25 +48,7 @@ impl LibraryLabel {
     }
 
     fn text(&self) -> String {
-        let subject = if self.filter {
-            if self.count != 1 {
-                "matches"
-            } else {
-                "match"
-            }
-        } else {
-            if self.count != 1 {
-                "books"
-            } else {
-                "book"
-            }
-        };
-
-        if self.count == 0 {
-            format!("{} (No {})", self.name, subject)
-        } else {
-            format!("{} ({} {})", self.name, self.count, subject)
-        }
+        "Sangala Reader".to_string()
     }
 }
 
@@ -75,7 +57,7 @@ impl View for LibraryLabel {
     fn handle_event(&mut self, evt: &Event, _hub: &Hub, bus: &mut Bus, _rq: &mut RenderQueue, _context: &mut Context) -> bool {
         match *evt {
             Event::Gesture(GestureEvent::Tap(center)) if self.rect.includes(center) => {
-                bus.push_back(Event::ToggleNear(ViewId::LibraryMenu, self.rect));
+                // Disabled: no bottom bar menu for Sangala Reader
                 true
             },
             _ => false,

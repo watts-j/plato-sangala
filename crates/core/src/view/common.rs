@@ -72,27 +72,11 @@ pub fn toggle_main_menu(view: &mut dyn View, rect: Rectangle, enable: Option<boo
             return;
         }
 
-        let rotation = CURRENT_DEVICE.to_canonical(context.display.rotation);
-        let rotate = (0..4).map(|n|
-            EntryKind::RadioButton((n as i16 * 90).to_string(),
-                                   EntryId::Rotate(CURRENT_DEVICE.from_canonical(n)),
-                                   n == rotation)
-        ).collect::<Vec<EntryKind>>();
-
-        let apps = vec![EntryKind::Command("Dictionary".to_string(),
-                                           EntryId::Launch(AppCmd::Dictionary { query: "".to_string(), language: "".to_string() })),
-                        EntryKind::Command("Calculator".to_string(),
+        let apps = vec![EntryKind::Command("Calculator".to_string(),
                                            EntryId::Launch(AppCmd::Calculator)),
-                        EntryKind::Command("Sketch".to_string(),
-                                           EntryId::Launch(AppCmd::Sketch)),
-                        EntryKind::Separator,
-                        EntryKind::Command("Touch Events".to_string(),
-                                           EntryId::Launch(AppCmd::TouchEvents)),
-                        EntryKind::Command("Rotation Values".to_string(),
-                                           EntryId::Launch(AppCmd::RotationValues))];
-        let mut entries = vec![EntryKind::Command("About".to_string(),
-                                                  EntryId::About),
-                               EntryKind::Command("System Info".to_string(),
+                        EntryKind::Command("Dictionary".to_string(),
+                                           EntryId::Launch(AppCmd::Dictionary { query: "".to_string(), language: "".to_string() }))];
+        let mut entries = vec![EntryKind::Command("System Info".to_string(),
                                                   EntryId::SystemInfo),
                                EntryKind::Separator,
                                EntryKind::CheckBox("Invert Colors".to_string(),
@@ -102,36 +86,11 @@ pub fn toggle_main_menu(view: &mut dyn View, rect: Rectangle, enable: Option<boo
                                                    EntryId::ToggleWifi,
                                                    context.settings.wifi),
                                EntryKind::Separator,
-                               EntryKind::SubMenu("Rotate".to_string(), rotate),
-                               EntryKind::Command("Take Screenshot".to_string(),
-                                                  EntryId::TakeScreenshot),
-                               EntryKind::Separator,
                                EntryKind::SubMenu("Applications".to_string(), apps),
                                EntryKind::Separator];
 
         entries.push(EntryKind::Command("Reboot".to_string(), EntryId::Reboot));
-        entries.push(EntryKind::Command("Quit".to_string(), EntryId::Quit));
-
-        if CURRENT_DEVICE.has_page_turn_buttons() {
-            let button_scheme = context.settings.button_scheme;
-            let button_schemes = vec![
-                EntryKind::RadioButton(ButtonScheme::Natural.to_string(), EntryId::SetButtonScheme(ButtonScheme::Natural), button_scheme == ButtonScheme::Natural),
-                EntryKind::RadioButton(ButtonScheme::Inverted.to_string(), EntryId::SetButtonScheme(ButtonScheme::Inverted), button_scheme == ButtonScheme::Inverted),
-            ];
-            entries.insert(5, EntryKind::SubMenu("Button Scheme".to_string(), button_schemes));
-        }
-
-        if CURRENT_DEVICE.has_gyroscope() {
-            let rotation_lock = context.settings.rotation_lock;
-            let gyro = vec![
-                EntryKind::RadioButton("Auto".to_string(), EntryId::SetRotationLock(None), rotation_lock.is_none()),
-                EntryKind::Separator,
-                EntryKind::RadioButton("Portrait".to_string(), EntryId::SetRotationLock(Some(RotationLock::Portrait)), rotation_lock == Some(RotationLock::Portrait)),
-                EntryKind::RadioButton("Landscape".to_string(), EntryId::SetRotationLock(Some(RotationLock::Landscape)), rotation_lock == Some(RotationLock::Landscape)),
-                EntryKind::RadioButton("Ignore".to_string(), EntryId::SetRotationLock(Some(RotationLock::Current)), rotation_lock == Some(RotationLock::Current)),
-            ];
-            entries.insert(5, EntryKind::SubMenu("Gyroscope".to_string(), gyro));
-        }
+        entries.push(EntryKind::Command("Power Off".to_string(), EntryId::PowerOff));
 
         let main_menu = Menu::new(rect, ViewId::MainMenu, MenuKind::DropDown, entries, context);
         rq.add(RenderData::new(main_menu.id(), *main_menu.rect(), UpdateMode::Gui));
@@ -182,8 +141,29 @@ pub fn toggle_clock_menu(view: &mut dyn View, rect: Rectangle, enable: Option<bo
         if let Some(false) = enable {
             return;
         }
-        let text = Local::now().format(&context.settings.date_format).to_string();
-        let entries = vec![EntryKind::Message(text, None)];
+        let now = Local::now();
+        let current_hour = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
+        let current_minute = now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+
+        let hours: Vec<EntryKind> = (0..24).map(|h| {
+            EntryKind::RadioButton(format!("{:02}", h),
+                                   EntryId::SetTimeHour(h),
+                                   h == current_hour)
+        }).collect();
+
+        let minutes: Vec<EntryKind> = (0..60).step_by(5).map(|m| {
+            EntryKind::RadioButton(format!("{:02}", m),
+                                   EntryId::SetTimeMinute(m),
+                                   m == current_minute / 5 * 5)
+        }).collect();
+
+        let text = now.format(&context.settings.date_format).to_string();
+        let entries = vec![
+            EntryKind::Message(text, None),
+            EntryKind::Separator,
+            EntryKind::SubMenu("Set Hour".to_string(), hours),
+            EntryKind::SubMenu("Set Minute".to_string(), minutes),
+        ];
         let clock_menu = Menu::new(rect, ViewId::ClockMenu, MenuKind::DropDown, entries, context);
         rq.add(RenderData::new(clock_menu.id(), *clock_menu.rect(), UpdateMode::Gui));
         view.children_mut().push(Box::new(clock_menu) as Box<dyn View>);

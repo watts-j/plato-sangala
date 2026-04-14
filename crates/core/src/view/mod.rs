@@ -509,6 +509,7 @@ pub enum EntryId {
     About,
     SystemInfo,
     LoadLibrary(usize),
+    LoadLibraryAndSelectDirectory(usize, PathBuf),
     Load(PathBuf),
     Flush,
     Save,
@@ -575,7 +576,10 @@ pub enum EntryId {
     New,
     Refresh,
     TakeScreenshot,
+    SetTimeHour(u32),
+    SetTimeMinute(u32),
     Reboot,
+    PowerOff,
     Quit,
 }
 

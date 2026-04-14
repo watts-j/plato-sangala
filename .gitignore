@@ -19,3 +19,7 @@
 /plato-*.zip
 /thirdparty/*/*
 !/thirdparty/*/*kobo*
+
+# Sangala additions
+.DS_Store
+*.swp

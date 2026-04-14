@@ -1,0 +1,122 @@
+# Sangala Reader - Settings for eReader 2.3
+# Kobo Clara BW - Custom Plato configuration
+# Cascading taxonomy: STEM, Humanities, Enrichment, Resources
+
+keyboard-layout = "English"
+frontlight = true
+wifi = false
+inverted = false
+sleep-cover = true
+auto-share = false
+button-scheme = "natural"
+auto-suspend = 30.0
+auto-power-off = 3.0
+time-format = "%H:%M"
+date-format = "%A, %B %-d, %Y"
+
+# Library: STEM
+[[libraries]]
+name = "STEM"
+path = "/mnt/onboard/STEM"
+mode = "database"
+sort-method = "added"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
+# Library: Humanities
+[[libraries]]
+name = "Humanities"
+path = "/mnt/onboard/Humanities"
+mode = "database"
+sort-method = "added"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
+# Library: Enrichment
+[[libraries]]
+name = "Enrichment"
+path = "/mnt/onboard/Enrichment"
+mode = "database"
+sort-method = "added"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
+# Library: Resources
+[[libraries]]
+name = "Resources"
+path = "/mnt/onboard/Resources"
+mode = "database"
+sort-method = "added"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
+# Intermissions - custom Sangala sleep screen
+[intermissions]
+suspend = "/mnt/onboard/.kobo/screensaver/sleep.png"
+power-off = "/mnt/onboard/.kobo/screensaver/sleep.png"
+share = "/mnt/onboard/.kobo/screensaver/sleep.png"
+
+[home]
+address-bar = false
+navigation-bar = true
+max-levels = 3
+max-trash-size = 33_554_432
+
+[reader]
+finished = "close"
+south-east-corner = "go-to-page"
+bottom-right-gesture = "toggle-dithered"
+south-strip = "toggle-bars"
+west-strip = "previous-page"
+east-strip = "next-page"
+strip-width = 0.6
+corner-width = 0.4
+font-path = "/mnt/onboard/fonts"
+font-family = "Libertinus Serif"
+font-size = 11.0
+min-font-size = 5.5
+max-font-size = 16.5
+text-align = "left"
+margin-width = 8
+min-margin-width = 0
+max-margin-width = 10
+line-height = 1.2
+continuous-fit-to-width = true
+ignore-document-css = false
+dithered-kinds = ["cbz", "jpg", "png", "jpeg"]
+
+[reader.paragraph-breaker]
+hyphen-penalty = 50
+stretch-tolerance = 1.26
+
+[reader.refresh-rate]
+regular = 8
+inverted = 2
+
+[import]
+unshare-trigger = true
+startup-trigger = true
+sync-metadata = true
+metadata-kinds = ["epub", "pdf", "djvu"]
+allowed-kinds = ["djvu", "xps", "fb2", "txt", "pdf", "oxps", "cbz", "epub"]
+
+[dictionary]
+font-size = 11.0
+margin-width = 4
+
+[calculator]
+font-size = 8.0
+margin-width = 2
+history-size = 4_096
+
+[battery]
+warn = 10.0
+power-off = 3.0
+
+[frontlight-levels]
+intensity = 0.0
+warmth = 0.0

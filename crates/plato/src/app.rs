@@ -950,8 +950,35 @@ pub fn run() -> Result<(), Error> {
                 let notif = Notification::new(msg, &tx, &mut rq, &mut context);
                 view.children_mut().push(Box::new(notif) as Box<dyn View>);
             },
+            Event::Select(EntryId::SetTimeHour(hour)) => {
+                let now = plato_core::chrono::Local::now();
+                let date_str = now.format("%Y-%m-%d").to_string();
+                let minute = now.format("%M").to_string();
+                let time_str = format!("{} {:02}:{}", date_str, hour, minute);
+                std::process::Command::new("date")
+                    .arg("-s")
+                    .arg(&time_str)
+                    .status()
+                    .ok();
+            },
+            Event::Select(EntryId::SetTimeMinute(minute)) => {
+                let now = plato_core::chrono::Local::now();
+                let date_str = now.format("%Y-%m-%d").to_string();
+                let hour = now.format("%H").to_string();
+                let time_str = format!("{} {}:{:02}", date_str, hour, minute);
+                std::process::Command::new("date")
+                    .arg("-s")
+                    .arg(&time_str)
+                    .status()
+                    .ok();
+            },
             Event::Select(EntryId::Reboot) => {
                 exit_status = ExitStatus::Reboot;
+                break;
+            },
+            Event::Select(EntryId::PowerOff) => {
+                power_off(view.as_mut(), &mut history, &mut updating, &mut context);
+                exit_status = ExitStatus::PowerOff;
                 break;
             },
             Event::Select(EntryId::Quit) => {
