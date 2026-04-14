@@ -92,7 +92,12 @@ impl Home {
         let selected_library = context.settings.selected_library;
         let library_settings = &context.settings.libraries[selected_library];
 
-        let current_directory = context.library.home.clone();
+        let current_directory = if let Some(ref startup_dir) = context.settings.home.startup_directory {
+            let target = context.library.home.join(startup_dir);
+            if target.is_dir() { target } else { context.library.home.clone() }
+        } else {
+            context.library.home.clone()
+        };
         let sort_method = library_settings.sort_method;
         let reverse_order = sort_method.reverse_order();
 
@@ -868,6 +873,26 @@ impl Home {
                 context.settings.libraries.iter().position(|l| l.name == name)
             };
             let mut taxonomy_entries: Vec<EntryKind> = Vec::new();
+
+            // Menu (About / Project Leaders) - stored in Resources library
+            if let Some(idx) = find_lib("Resources") {
+                let about_entries = vec![
+                    EntryKind::Command("About the Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About/About the Reader"))),
+                    EntryKind::Command("Introduction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About/Introduction"))),
+                ];
+                let project_entries = vec![
+                    EntryKind::Command("Sangala Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Project Leaders/Sangala Reader"))),
+                    EntryKind::Command("Netscope Microscope".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Project Leaders/Netscope Microscope"))),
+                    EntryKind::Command("Weather Station".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Project Leaders/Weather Station"))),
+                ];
+                let menu_entries = vec![
+                    EntryKind::SubMenu("About".to_string(), about_entries),
+                    EntryKind::SubMenu("Project Leaders".to_string(), project_entries),
+                ];
+                taxonomy_entries.push(EntryKind::SubMenu("Menu".to_string(), menu_entries));
+            }
+
+            // STEM Library
             if let Some(idx) = find_lib("STEM") {
                 let math_entries = vec![
                     EntryKind::Command("Algebra".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Algebra"))),
@@ -889,6 +914,8 @@ impl Home {
                 ];
                 taxonomy_entries.push(EntryKind::SubMenu("STEM".to_string(), stem_entries));
             }
+
+            // Humanities Library
             if let Some(idx) = find_lib("Humanities") {
                 let entries = vec![
                     EntryKind::RadioButton("Humanities (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
@@ -900,6 +927,8 @@ impl Home {
                 ];
                 taxonomy_entries.push(EntryKind::SubMenu("Humanities".to_string(), entries));
             }
+
+            // Enrichment Library
             if let Some(idx) = find_lib("Enrichment") {
                 let entries = vec![
                     EntryKind::RadioButton("Enrichment (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
@@ -910,11 +939,13 @@ impl Home {
                 ];
                 taxonomy_entries.push(EntryKind::SubMenu("Enrichment".to_string(), entries));
             }
+
+            // Resources Library
             if let Some(idx) = find_lib("Resources") {
                 let entries = vec![
                     EntryKind::RadioButton("Resources (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
                     EntryKind::Separator,
-                    EntryKind::Command("How to Use the Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("How to Use the Reader"))),
+                    EntryKind::Command("REACH for Uganda Newsletters".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("REACH for Uganda Newsletters"))),
                 ];
                 taxonomy_entries.push(EntryKind::SubMenu("Resources".to_string(), entries));
             }

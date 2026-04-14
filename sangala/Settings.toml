@@ -65,6 +65,7 @@ address-bar = false
 navigation-bar = true
 max-levels = 3
 max-trash-size = 33_554_432
+startup-directory = "About/Introduction"
 
 [reader]
 finished = "close"

@@ -2207,6 +2207,18 @@ impl Reader {
         self.update_bottom_bar(rq);
     }
 
+    fn adjust_font_size(&mut self, delta: f32, hub: &Hub, rq: &mut RenderQueue, context: &mut Context) {
+        let current = self.info.reader.as_ref()
+                          .and_then(|r| r.font_size)
+                          .unwrap_or(context.settings.reader.font_size);
+        let new_size = (current + delta)
+                       .clamp(context.settings.reader.min_font_size,
+                              context.settings.reader.max_font_size);
+        if (new_size - current).abs() > f32::EPSILON {
+            self.set_font_size(new_size, hub, rq, context);
+        }
+    }
+
     fn set_text_align(&mut self, text_align: TextAlign, hub: &Hub, rq: &mut RenderQueue, context: &mut Context) {
         if Arc::strong_count(&self.doc) > 1 {
             return;
@@ -2726,14 +2738,20 @@ impl View for Reader {
                 true
             },
             Event::Gesture(GestureEvent::Spread { axis: Axis::Horizontal, center, .. }) if self.rect.includes(center) => {
-                if !self.reflowable {
+                if self.reflowable {
+                    self.adjust_font_size(0.5, hub, rq, context);
+                } else {
                     self.set_zoom_mode(ZoomMode::FitToWidth, true, hub, rq, context);
                 }
                 true
 
             },
             Event::Gesture(GestureEvent::Pinch { axis: Axis::Horizontal, center, .. }) if self.rect.includes(center) => {
-                self.set_zoom_mode(ZoomMode::FitToPage, true, hub, rq, context);
+                if self.reflowable {
+                    self.adjust_font_size(-0.5, hub, rq, context);
+                } else {
+                    self.set_zoom_mode(ZoomMode::FitToPage, true, hub, rq, context);
+                }
                 true
             },
             Event::Gesture(GestureEvent::Spread { axis: Axis::Vertical, center, .. }) if self.rect.includes(center) => {
@@ -2752,7 +2770,12 @@ impl View for Reader {
             Event::Gesture(GestureEvent::Spread { axis: Axis::Diagonal, center, factor }) |
             Event::Gesture(GestureEvent::Pinch { axis: Axis::Diagonal, center, factor }) if factor.is_finite() &&
                                                                                             self.rect.includes(center) => {
-                self.scale_page(center, factor, hub, rq, context);
+                if self.reflowable {
+                    let step = if factor > 1.0 { 0.5 } else { -0.5 };
+                    self.adjust_font_size(step, hub, rq, context);
+                } else {
+                    self.scale_page(center, factor, hub, rq, context);
+                }
                 true
             },
             Event::Gesture(GestureEvent::Arrow { dir, .. }) => {

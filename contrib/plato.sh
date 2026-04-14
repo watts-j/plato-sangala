@@ -4,15 +4,16 @@ WORKDIR=$(dirname "$0")
 cd "$WORKDIR" || exit 1
 
 PLATO_SET_FRAMEBUFFER_DEPTH=1
-PLATO_CONVERT_DICTIONARIES=1
+# Dictionary conversion is slow; only enable when new .ifo dictionaries are added
+# PLATO_CONVERT_DICTIONARIES=1
 
 # shellcheck disable=SC1091
 [ -e config.sh ] && . config.sh
 
 # shellcheck disable=SC2046
 export $(grep -sE '^(INTERFACE|WIFI_MODULE|DBUS_SESSION_BUS_ADDRESS|NICKEL_HOME|LANG)=' /proc/"$(pidof -s nickel)"/environ)
-sync
 killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon > /dev/null 2>&1
+sync &
 
 
 if [ -e /sys/class/leds/LED ] ; then
