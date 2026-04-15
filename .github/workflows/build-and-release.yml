@@ -118,14 +118,14 @@ jobs:
           cp contrib/NickelMenu/plato "${PKG}/.adds/nm/plato"
 
           # KFMon auto-launch config for Plato
-          cat > "${PKG}/.adds/kfmon/config/plato.ini" << 'KFMON'
-[watch]
-filename = /mnt/onboard/.adds/plato/launch.png
-action = /mnt/onboard/.adds/plato/plato.sh
-label = Plato
-block_spawns = 1
-on_boot = true
-KFMON
+          printf '%s\n' \
+            "[watch]" \
+            "filename = /mnt/onboard/.adds/plato/launch.png" \
+            "action = /mnt/onboard/.adds/plato/plato.sh" \
+            "label = Plato" \
+            "block_spawns = 1" \
+            "on_boot = true" \
+            > "${PKG}/.adds/kfmon/config/plato.ini"
 
           # KFMon trigger image (a 1x1 PNG placeholder)
           printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > "${PKG}/.adds/plato/launch.png"
