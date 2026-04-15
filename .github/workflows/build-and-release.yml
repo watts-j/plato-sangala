@@ -15,7 +15,8 @@ permissions:
 
 env:
   TOOLCHAIN_URL: "https://releases.linaro.org/components/toolchain/binaries/4.9-2017.01/arm-linux-gnueabihf/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz"
-  KFMON_URL: "https://github.com/NiLuJe/kfmon/releases/download/v1.4.6/KFMon-v1.4.6-g0e740e0.zip"
+  # Previous working release — used to extract KFMon + NickelMenu binaries
+  PREV_RELEASE_URL: "https://github.com/watts-j/plato-sangala/releases/download/v2.3-sangala-full-build/eReader.2.3.zip"
 
 jobs:
   build:
@@ -71,11 +72,11 @@ jobs:
       - name: Create distribution package
         run: ./dist.sh
 
-      - name: Download KFMon + NickelMenu one-click install
+      - name: Extract KFMon + NickelMenu from previous working release
         run: |
-          wget -q "$KFMON_URL" -O kfmon.zip
-          mkdir -p kfmon-staging
-          unzip kfmon.zip -d kfmon-staging
+          wget -q "$PREV_RELEASE_URL" -O prev-release.zip
+          mkdir -p prev-release
+          unzip -o prev-release.zip -d prev-release
 
       - name: Determine release tag
         id: tag
@@ -92,24 +93,18 @@ jobs:
           PKG="plato-sangala-${TAG}"
           mkdir -p "${PKG}"
 
-          # --- KFMon + NickelMenu (from one-click install) ---
-          # Extract KoboRoot.tgz to get .adds/ (kfmon binary, nm binary)
-          cd kfmon-staging
-          tar -xzf KoboRoot.tgz
-          cd ..
+          # --- KFMon + NickelMenu from previous working release ---
+          # .kobo/ (KoboRoot.tgz, Kobo config, screensaver)
+          cp -R prev-release/.kobo "${PKG}/"
 
-          # .kobo/KoboRoot.tgz — installs KFMon service on first boot
-          mkdir -p "${PKG}/.kobo"
-          cp kfmon-staging/KoboRoot.tgz "${PKG}/.kobo/KoboRoot.tgz"
-
-          # .adds/kfmon/ — KFMon binary + base config
-          cp -R kfmon-staging/mnt/onboard/.adds/kfmon "${PKG}/.adds/"
+          # .adds/kfmon/ — KFMon binary + config
+          mkdir -p "${PKG}/.adds"
+          cp -R prev-release/.adds/kfmon "${PKG}/.adds/"
 
           # .adds/nm/ — NickelMenu binary
-          cp -R kfmon-staging/mnt/onboard/.adds/nm "${PKG}/.adds/"
+          cp -R prev-release/.adds/nm "${PKG}/.adds/"
 
-          # --- Plato ---
-          # .adds/plato/ — Plato binary, libs, fonts, etc.
+          # --- Plato (freshly built) ---
           mkdir -p "${PKG}/.adds/plato"
           cp -R dist/* "${PKG}/.adds/plato/"
           cp sangala/Settings.toml "${PKG}/.adds/plato/Settings.toml"
@@ -127,10 +122,10 @@ jobs:
             "on_boot = true" \
             > "${PKG}/.adds/kfmon/config/plato.ini"
 
-          # KFMon trigger image (a 1x1 PNG placeholder)
+          # KFMon trigger image
           printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > "${PKG}/.adds/plato/launch.png"
 
-          # --- Kobo assets ---
+          # --- Override .kobo assets with latest from repo ---
           cp -R sangala/kobo-assets/* "${PKG}/.kobo/"
 
           # --- Library content (EPUBs) ---
