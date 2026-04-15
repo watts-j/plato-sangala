@@ -1,0 +1,129 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v2.3.1)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TOOLCHAIN_URL: "https://releases.linaro.org/components/toolchain/binaries/4.9-2017.01/arm-linux-gnueabihf/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget jq patchelf
+
+      - name: Cache Linaro toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: toolchain
+          key: linaro-gcc-4.9.4-2017.01
+
+      - name: Download Linaro toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p toolchain
+          wget -q "$TOOLCHAIN_URL" -O toolchain.tar.xz
+          tar -xf toolchain.tar.xz --strip-components=1 -C toolchain
+          rm toolchain.tar.xz
+
+      - name: Add toolchain to PATH
+        run: echo "${{ github.workspace }}/toolchain/bin" >> $GITHUB_PATH
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: arm-unknown-linux-gnueabihf
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-arm-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-arm-
+
+      - name: Download pre-built libraries and build
+        run: |
+          # Use the fast method: download pre-built ARM libs from upstream Plato release
+          ./build.sh fast
+
+      - name: Create distribution package
+        run: ./dist.sh
+
+      - name: Add Sangala customizations
+        run: |
+          # Use Sangala settings instead of the sample
+          cp sangala/Settings.toml dist/Settings.toml
+
+          # Copy EPUB content into a separate sangala-content directory
+          # These go on the Kobo root (/mnt/onboard/), not in .adds/plato/
+          mkdir -p dist/sangala-content
+          cp -R sangala/library-skeleton/* dist/sangala-content/
+          # Remove .gitkeep placeholder files
+          find dist/sangala-content -name '.gitkeep' -delete
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package release archive
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          mv dist "plato-sangala-${TAG}"
+          tar -czf "plato-sangala-${TAG}.tar.gz" "plato-sangala-${TAG}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plato-sangala-${{ steps.tag.outputs.tag }}
+          path: plato-sangala-${{ steps.tag.outputs.tag }}.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Plato Sangala ${{ steps.tag.outputs.tag }}"
+          body: |
+            ## Plato Sangala ${{ steps.tag.outputs.tag }}
+
+            Customized Plato build for Kobo Clara BW.
+
+            ### Installation
+            1. Connect Kobo to computer via USB
+            2. Extract the archive
+            3. Copy everything **except** `sangala-content/` into `/mnt/onboard/.adds/plato/`
+            4. Copy the **contents** of `sangala-content/` (STEM, Humanities, Enrichment, Resources) to `/mnt/onboard/`
+            5. Eject and launch Plato via NickelMenu
+
+            ### Included EPUB content
+            - **STEM > Biology**: Concepts of Biology
+            - **Enrichment > Fiction**: Penrod, The Verger
+            - **Resources > About the Reader**: Sangala Reader Initiative
+          files: plato-sangala-${{ steps.tag.outputs.tag }}.tar.gz
+          draft: false
+          prerelease: false
