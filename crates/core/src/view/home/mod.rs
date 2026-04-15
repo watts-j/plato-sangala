@@ -874,8 +874,8 @@ impl Home {
             };
             let mut taxonomy_entries: Vec<EntryKind> = Vec::new();
 
-            // Menu (About / Project Leaders) - stored in Resources library
-            if let Some(idx) = find_lib("Resources") {
+            // Menu (About / Project Leaders) - stored in Menu library
+            if let Some(idx) = find_lib("Menu") {
                 let about_entries = vec![
                     EntryKind::Command("About the Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About/About the Reader"))),
                     EntryKind::Command("Introduction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About/Introduction"))),
@@ -940,8 +940,8 @@ impl Home {
                 taxonomy_entries.push(EntryKind::SubMenu("Enrichment".to_string(), entries));
             }
 
-            // Resources Library
-            if let Some(idx) = find_lib("Resources") {
+            // Resources Library (uses the Menu library)
+            if let Some(idx) = find_lib("Menu") {
                 let entries = vec![
                     EntryKind::RadioButton("Resources (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
                     EntryKind::Separator,

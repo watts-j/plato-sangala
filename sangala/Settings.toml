@@ -1,6 +1,6 @@
-# Sangala Reader - Settings for eReader 2.3
+# Sangala Reader - Settings for eReader 2.4
 # Kobo Clara BW - Custom Plato configuration
-# Cascading taxonomy: STEM, Humanities, Enrichment, Resources
+# Cascading taxonomy: Menu, STEM, Humanities, Enrichment, Resources
 
 keyboard-layout = "English"
 frontlight = true
@@ -13,6 +13,7 @@ auto-suspend = 30.0
 auto-power-off = 3.0
 time-format = "%H:%M"
 date-format = "%A, %B %-d, %Y"
+selected-library = 3
 
 # Library: STEM
 [[libraries]]
@@ -44,9 +45,9 @@ first-column = "title-and-author"
 second-column = "progress"
 thumbnail-previews = true
 
-# Library: Resources
+# Library: Menu (Resources) — default library, shown in top bar
 [[libraries]]
-name = "Resources"
+name = "Menu"
 path = "/mnt/onboard/Resources"
 mode = "database"
 sort-method = "added"
