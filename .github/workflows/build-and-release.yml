@@ -70,18 +70,6 @@ jobs:
       - name: Create distribution package
         run: ./dist.sh
 
-      - name: Add Sangala customizations
-        run: |
-          # Use Sangala settings instead of the sample
-          cp sangala/Settings.toml dist/Settings.toml
-
-          # Copy EPUB content into a separate sangala-content directory
-          # These go on the Kobo root (/mnt/onboard/), not in .adds/plato/
-          mkdir -p dist/sangala-content
-          cp -R sangala/library-skeleton/* dist/sangala-content/
-          # Remove .gitkeep placeholder files
-          find dist/sangala-content -name '.gitkeep' -delete
-
       - name: Determine release tag
         id: tag
         run: |
@@ -91,11 +79,42 @@ jobs:
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Package release archive
+      - name: Assemble Kobo filesystem image
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          mv dist "plato-sangala-${TAG}"
-          tar -czf "plato-sangala-${TAG}.tar.gz" "plato-sangala-${TAG}"
+          PKG="plato-sangala-${TAG}"
+          mkdir -p "${PKG}/.adds/plato"
+
+          # Plato application files -> .adds/plato/
+          cp -R dist/* "${PKG}/.adds/plato/"
+          # Use Sangala settings
+          cp sangala/Settings.toml "${PKG}/.adds/plato/Settings.toml"
+
+          # NickelMenu entry -> .adds/nm/
+          mkdir -p "${PKG}/.adds/nm"
+          cp contrib/NickelMenu/plato "${PKG}/.adds/nm/plato"
+
+          # KFMon auto-launch config -> .adds/kfmon/config/
+          mkdir -p "${PKG}/.adds/kfmon/config"
+          cat > "${PKG}/.adds/kfmon/config/plato.ini" << 'KFMON'
+          [watch]
+          filename = /mnt/onboard/.adds/plato/launch.png
+          action = /mnt/onboard/.adds/plato/plato.sh
+          label = Plato
+          block_spawns = 1
+          on_boot = true
+          KFMON
+
+          # Create the KFMon trigger image (a 1x1 PNG placeholder)
+          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > "${PKG}/.adds/plato/launch.png"
+
+          # Library content (EPUBs) -> root level
+          cp -R sangala/library-skeleton/* "${PKG}/"
+          # Remove .gitkeep placeholder files
+          find "${PKG}" -name '.gitkeep' -delete
+
+          # Package it
+          tar -czf "${PKG}.tar.gz" "${PKG}"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -116,14 +135,18 @@ jobs:
             ### Installation
             1. Connect Kobo to computer via USB
             2. Extract the archive
-            3. Copy everything **except** `sangala-content/` into `/mnt/onboard/.adds/plato/`
-            4. Copy the **contents** of `sangala-content/` (STEM, Humanities, Enrichment, Resources) to `/mnt/onboard/`
-            5. Eject and launch Plato via NickelMenu
+            3. Copy the **contents** of `plato-sangala-${{ steps.tag.outputs.tag }}/` to the root of the Kobo drive
+            4. Eject the Kobo — Plato will auto-launch on boot
+
+            **Note:** KFMon must be installed on the Kobo for auto-launch.
+            If not installed, get it from https://www.mobileread.com/forums/showthread.php?t=274231
 
             ### Included EPUB content
             - **STEM > Biology**: Concepts of Biology
             - **Enrichment > Fiction**: Penrod, The Verger
+            - **Enrichment > Sangala Story Exchange**: A Leopard in the Forest
             - **Resources > About the Reader**: Sangala Reader Initiative
+            - **Resources > Newsletters**: Newsletter (Fall 2025) - REACH for Uganda
           files: plato-sangala-${{ steps.tag.outputs.tag }}.tar.gz
           draft: false
           prerelease: false
