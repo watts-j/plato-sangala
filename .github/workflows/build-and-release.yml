@@ -15,6 +15,7 @@ permissions:
 
 env:
   TOOLCHAIN_URL: "https://releases.linaro.org/components/toolchain/binaries/4.9-2017.01/arm-linux-gnueabihf/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz"
+  KFMON_URL: "https://github.com/NiLuJe/kfmon/releases/download/v1.4.6/KFMon-v1.4.6-g0e740e0.zip"
 
 jobs:
   build:
@@ -70,6 +71,12 @@ jobs:
       - name: Create distribution package
         run: ./dist.sh
 
+      - name: Download KFMon + NickelMenu one-click install
+        run: |
+          wget -q "$KFMON_URL" -O kfmon.zip
+          mkdir -p kfmon-staging
+          unzip kfmon.zip -d kfmon-staging
+
       - name: Determine release tag
         id: tag
         run: |
@@ -83,39 +90,53 @@ jobs:
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           PKG="plato-sangala-${TAG}"
-          mkdir -p "${PKG}/.adds/plato"
+          mkdir -p "${PKG}"
 
-          # Plato application files -> .adds/plato/
+          # --- KFMon + NickelMenu (from one-click install) ---
+          # Extract KoboRoot.tgz to get .adds/ (kfmon binary, nm binary)
+          cd kfmon-staging
+          tar -xzf KoboRoot.tgz
+          cd ..
+
+          # .kobo/KoboRoot.tgz — installs KFMon service on first boot
+          mkdir -p "${PKG}/.kobo"
+          cp kfmon-staging/KoboRoot.tgz "${PKG}/.kobo/KoboRoot.tgz"
+
+          # .adds/kfmon/ — KFMon binary + base config
+          cp -R kfmon-staging/mnt/onboard/.adds/kfmon "${PKG}/.adds/"
+
+          # .adds/nm/ — NickelMenu binary
+          cp -R kfmon-staging/mnt/onboard/.adds/nm "${PKG}/.adds/"
+
+          # --- Plato ---
+          # .adds/plato/ — Plato binary, libs, fonts, etc.
+          mkdir -p "${PKG}/.adds/plato"
           cp -R dist/* "${PKG}/.adds/plato/"
-          # Use Sangala settings
           cp sangala/Settings.toml "${PKG}/.adds/plato/Settings.toml"
 
-          # NickelMenu entry -> .adds/nm/
-          mkdir -p "${PKG}/.adds/nm"
+          # NickelMenu entry for Plato
           cp contrib/NickelMenu/plato "${PKG}/.adds/nm/plato"
 
-          # KFMon auto-launch config -> .adds/kfmon/config/
-          mkdir -p "${PKG}/.adds/kfmon/config"
+          # KFMon auto-launch config for Plato
           cat > "${PKG}/.adds/kfmon/config/plato.ini" << 'KFMON'
-          [watch]
-          filename = /mnt/onboard/.adds/plato/launch.png
-          action = /mnt/onboard/.adds/plato/plato.sh
-          label = Plato
-          block_spawns = 1
-          on_boot = true
-          KFMON
+[watch]
+filename = /mnt/onboard/.adds/plato/launch.png
+action = /mnt/onboard/.adds/plato/plato.sh
+label = Plato
+block_spawns = 1
+on_boot = true
+KFMON
 
-          # Create the KFMon trigger image (a 1x1 PNG placeholder)
+          # KFMon trigger image (a 1x1 PNG placeholder)
           printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > "${PKG}/.adds/plato/launch.png"
 
-          # Library content (EPUBs) -> root level
-          cp -R sangala/library-skeleton/* "${PKG}/"
-
-          # Kobo assets (.kobo/screensaver/) -> root level
-          mkdir -p "${PKG}/.kobo"
+          # --- Kobo assets ---
           cp -R sangala/kobo-assets/* "${PKG}/.kobo/"
 
-          # Remove .gitkeep placeholder files
+          # --- Library content (EPUBs) ---
+          cp -R sangala/library-skeleton/* "${PKG}/"
+
+          # Clean up
           find "${PKG}" -name '.gitkeep' -delete
 
           # Package it
@@ -136,15 +157,13 @@ jobs:
             ## Plato Sangala ${{ steps.tag.outputs.tag }}
 
             Customized Plato build for Kobo Clara BW.
+            Includes KFMon + NickelMenu for auto-launch on boot.
 
-            ### Installation
+            ### Installation (fresh or update)
             1. Connect Kobo to computer via USB
             2. Extract the archive
             3. Copy the **contents** of `plato-sangala-${{ steps.tag.outputs.tag }}/` to the root of the Kobo drive
-            4. Eject the Kobo — Plato will auto-launch on boot
-
-            **Note:** KFMon must be installed on the Kobo for auto-launch.
-            If not installed, get it from https://www.mobileread.com/forums/showthread.php?t=274231
+            4. Eject the Kobo — it will install KFMon and auto-launch Plato
 
             ### Included EPUB content
             - **STEM > Biology**: Concepts of Biology
