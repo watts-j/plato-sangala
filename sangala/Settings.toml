@@ -13,7 +13,6 @@ auto-suspend = 30.0
 auto-power-off = 3.0
 time-format = "%H:%M"
 date-format = "%A, %B %-d, %Y"
-selected-library = 3
 
 # Library: STEM
 [[libraries]]
@@ -45,9 +44,9 @@ first-column = "title-and-author"
 second-column = "progress"
 thumbnail-previews = true
 
-# Library: Menu (Resources) — default library, shown in top bar
+# Library: Resources
 [[libraries]]
-name = "Menu"
+name = "Resources"
 path = "/mnt/onboard/Resources"
 mode = "database"
 sort-method = "added"
