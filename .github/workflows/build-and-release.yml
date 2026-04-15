@@ -110,6 +110,11 @@ jobs:
 
           # Library content (EPUBs) -> root level
           cp -R sangala/library-skeleton/* "${PKG}/"
+
+          # Kobo assets (.kobo/screensaver/) -> root level
+          mkdir -p "${PKG}/.kobo"
+          cp -R sangala/kobo-assets/* "${PKG}/.kobo/"
+
           # Remove .gitkeep placeholder files
           find "${PKG}" -name '.gitkeep' -delete
 
