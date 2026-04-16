@@ -54,16 +54,6 @@ first-column = "title-and-author"
 second-column = "progress"
 thumbnail-previews = true
 
-# Library: Menu (default — shown in top bar on boot)
-[[libraries]]
-name = "Menu"
-path = "/mnt/onboard/Menu"
-mode = "database"
-sort-method = "title"
-first-column = "title-and-author"
-second-column = "progress"
-thumbnail-previews = true
-
 # Intermissions - custom Sangala sleep screen
 [intermissions]
 suspend = "/mnt/onboard/.kobo/screensaver/sleep.png"
