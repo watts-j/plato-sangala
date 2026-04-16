@@ -150,6 +150,20 @@ impl Library {
                         }
                     }
                 }
+                // Also include empty filesystem directories so navigation buttons
+                // appear for all subdirectories, not just those containing books.
+                if let Ok(entries) = std::fs::read_dir(prefix.as_ref()) {
+                    for entry in entries.flatten() {
+                        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                            let name = entry.file_name();
+                            let name_str = name.to_string_lossy();
+                            if name_str.starts_with('.') {
+                                continue;
+                            }
+                            dirs.insert(prefix.as_ref().join(&name));
+                        }
+                    }
+                }
             },
             LibraryMode::Filesystem => {
                 if !prefix.as_ref().is_dir() {

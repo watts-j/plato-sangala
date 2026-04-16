@@ -105,7 +105,7 @@ impl Home {
         let current_page = 0;
         let mut shelf_index = 2;
 
-        let library_name = context.settings.libraries[selected_library].name.clone();
+        let library_name = "Menu".to_string();
         let top_bar = TopBar::new(rect![rect.min.x, rect.min.y,
                                         rect.max.x, rect.min.y + small_height - small_thickness],
                                   Event::Toggle(ViewId::SearchBar),
@@ -408,8 +408,7 @@ impl Home {
             let top_bar = self.children[index].as_mut().downcast_mut::<TopBar>().unwrap();
             let name = if search_visible { "back" } else { "search" };
             top_bar.update_root_icon(name, rq);
-            let library_name = &context.settings.libraries[context.settings.selected_library].name;
-            top_bar.update_title_label(library_name, rq);
+            top_bar.update_title_label("Menu", rq);
         }
     }
 
