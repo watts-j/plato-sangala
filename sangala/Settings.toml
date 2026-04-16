@@ -13,6 +13,7 @@ auto-suspend = 30.0
 auto-power-off = 3.0
 time-format = "%H:%M"
 date-format = "%A, %B %-d, %Y"
+selected-library = 4
 
 # Library: STEM
 [[libraries]]
@@ -54,6 +55,16 @@ first-column = "title-and-author"
 second-column = "progress"
 thumbnail-previews = true
 
+# Library: Menu (default — shown in top bar on boot)
+[[libraries]]
+name = "Menu"
+path = "/mnt/onboard/Menu"
+mode = "database"
+sort-method = "added"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
 # Intermissions - custom Sangala sleep screen
 [intermissions]
 suspend = "/mnt/onboard/.kobo/screensaver/sleep.png"
@@ -65,7 +76,7 @@ address-bar = false
 navigation-bar = true
 max-levels = 3
 max-trash-size = 33_554_432
-startup-directory = "About/Introduction"
+startup-document = "Sangala Reader.epub"
 
 [reader]
 finished = "close"

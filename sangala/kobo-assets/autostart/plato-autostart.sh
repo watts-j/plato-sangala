@@ -6,7 +6,7 @@ until pidof nickel > /dev/null 2>&1; do
 done
 
 # Allow Nickel to fully initialize before handing off to Plato
-sleep 11
+sleep 10
 
 # Launch Plato
 exec /mnt/onboard/.adds/plato/plato.sh
