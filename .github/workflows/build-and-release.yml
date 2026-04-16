@@ -118,6 +118,9 @@ jobs:
           mkdir -p "${PKG}/.adds/plato"
           cp -R dist/* "${PKG}/.adds/plato/"
           cp sangala/Settings.toml "${PKG}/.adds/plato/Settings.toml"
+          # Home screen image
+          mkdir -p "${PKG}/.adds/plato/resources"
+          cp sangala/kobo-assets/plato-resources/home.png "${PKG}/.adds/plato/resources/home.png"
 
           # NickelMenu entry for Plato
           cp contrib/NickelMenu/plato "${PKG}/.adds/nm/plato"

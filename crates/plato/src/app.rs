@@ -323,16 +323,6 @@ pub fn run() -> Result<(), Error> {
     let mut updating = Vec::new();
     let current_dir = env::current_dir()?;
 
-    // Auto-open startup document if configured
-    if let Some(ref doc_name) = context.settings.home.startup_document {
-        let (books, _) = context.library.list(&context.library.home, None, false);
-        if let Some(info) = books.into_iter().find(|b| {
-            b.file.path.to_string_lossy().ends_with(doc_name.as_str())
-        }) {
-            tx.send(Event::Open(Box::new(info))).ok();
-        }
-    }
-
     println!("{} is running on a Kobo {}.", APP_NAME,
                                             CURRENT_DEVICE.model);
     println!("The framebuffer resolution is {} by {}.", context.fb.rect().width(),

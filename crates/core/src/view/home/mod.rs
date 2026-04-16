@@ -6,6 +6,7 @@ mod directory;
 mod shelf;
 mod book;
 mod bottom_bar;
+mod home_image;
 
 use std::fs;
 use std::mem;
@@ -39,6 +40,7 @@ use self::address_bar::AddressBar;
 use self::navigation_bar::NavigationBar;
 use self::shelf::Shelf;
 use self::bottom_bar::BottomBar;
+use self::home_image::HomeImage;
 use crate::gesture::GestureEvent;
 use crate::geom::{Rectangle, Dir, DiagDir, CycleDir, halves};
 use crate::input::{DeviceEvent, ButtonCode, ButtonStatus};
@@ -92,12 +94,7 @@ impl Home {
         let selected_library = context.settings.selected_library;
         let library_settings = &context.settings.libraries[selected_library];
 
-        let current_directory = if let Some(ref startup_dir) = context.settings.home.startup_directory {
-            let target = context.library.home.join(startup_dir);
-            if target.is_dir() { target } else { context.library.home.clone() }
-        } else {
-            context.library.home.clone()
-        };
+        let current_directory = context.library.home.clone();
         let sort_method = library_settings.sort_method;
         let reverse_order = sort_method.reverse_order();
 
@@ -162,35 +159,49 @@ impl Home {
         let selected_library = context.settings.selected_library;
         let library_settings = &context.settings.libraries[selected_library];
 
-        let mut shelf = Shelf::new(rect![rect.min.x, y_start,
-                                         rect.max.x, rect.max.y - small_height - small_thickness],
-                                   library_settings.first_column,
-                                   library_settings.second_column,
-                                   library_settings.thumbnail_previews);
+        let home_image_path = context.settings.home.home_image.as_ref()
+            .map(|p| PathBuf::from(p))
+            .filter(|p| p.exists());
 
+        let pages_count;
 
-        let max_lines = shelf.max_lines;
-        let pages_count = (visible_books.len() as f32 / max_lines as f32).ceil() as usize;
-        let index_lower = current_page * max_lines;
-        let index_upper = (index_lower + max_lines).min(visible_books.len());
+        if let Some(ref image_path) = home_image_path {
+            // Display home image instead of the shelf
+            pages_count = 0;
+            let image_view = HomeImage::new(rect![rect.min.x, y_start,
+                                                   rect.max.x, rect.max.y],
+                                             image_path.clone());
+            children.push(Box::new(image_view) as Box<dyn View>);
+        } else {
+            let mut shelf = Shelf::new(rect![rect.min.x, y_start,
+                                             rect.max.x, rect.max.y - small_height - small_thickness],
+                                       library_settings.first_column,
+                                       library_settings.second_column,
+                                       library_settings.thumbnail_previews);
 
-        shelf.update(&visible_books[index_lower..index_upper], hub, &mut RenderQueue::new(), context);
+            let max_lines = shelf.max_lines;
+            pages_count = (visible_books.len() as f32 / max_lines as f32).ceil() as usize;
+            let index_lower = current_page * max_lines;
+            let index_upper = (index_lower + max_lines).min(visible_books.len());
 
-        children.push(Box::new(shelf) as Box<dyn View>);
+            shelf.update(&visible_books[index_lower..index_upper], hub, &mut RenderQueue::new(), context);
 
-        let separator = Filler::new(rect![rect.min.x, rect.max.y - small_height - small_thickness,
-                                          rect.max.x, rect.max.y - small_height + big_thickness],
-                                    BLACK);
-        children.push(Box::new(separator) as Box<dyn View>);
+            children.push(Box::new(shelf) as Box<dyn View>);
 
-        let bottom_bar = BottomBar::new(rect![rect.min.x, rect.max.y - small_height + big_thickness,
-                                              rect.max.x, rect.max.y],
-                                        current_page,
-                                        pages_count,
-                                        &library_settings.name,
-                                        count,
-                                        false);
-        children.push(Box::new(bottom_bar) as Box<dyn View>);
+            let separator = Filler::new(rect![rect.min.x, rect.max.y - small_height - small_thickness,
+                                              rect.max.x, rect.max.y - small_height + big_thickness],
+                                        BLACK);
+            children.push(Box::new(separator) as Box<dyn View>);
+
+            let bottom_bar = BottomBar::new(rect![rect.min.x, rect.max.y - small_height + big_thickness,
+                                                  rect.max.x, rect.max.y],
+                                            current_page,
+                                            pages_count,
+                                            &library_settings.name,
+                                            count,
+                                            false);
+            children.push(Box::new(bottom_bar) as Box<dyn View>);
+        }
 
         rq.add(RenderData::new(id, rect, UpdateMode::Full));
 
@@ -868,31 +879,38 @@ impl Home {
                 return;
             }
 
-            let selected_library = context.settings.selected_library;
             let find_lib = |name: &str| -> Option<usize> {
                 context.settings.libraries.iter().position(|l| l.name == name)
             };
-            let mut taxonomy_entries: Vec<EntryKind> = Vec::new();
+            let mut entries: Vec<EntryKind> = Vec::new();
 
-            // Menu (About / Project Leaders) - stored in Resources library
+            // About — flat command pointing to Resources/About/
             if let Some(idx) = find_lib("Resources") {
-                let about_entries = vec![
-                    EntryKind::Command("About the Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About/About the Reader"))),
-                    EntryKind::Command("Introduction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About/Introduction"))),
-                ];
-                let project_entries = vec![
-                    EntryKind::Command("Sangala Reader".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Project Leaders/Sangala Reader"))),
-                    EntryKind::Command("Netscope Microscope".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Project Leaders/Netscope Microscope"))),
-                    EntryKind::Command("Weather Station".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Project Leaders/Weather Station"))),
-                ];
-                let menu_entries = vec![
-                    EntryKind::SubMenu("About".to_string(), about_entries),
-                    EntryKind::SubMenu("Project Leaders".to_string(), project_entries),
-                ];
-                taxonomy_entries.push(EntryKind::SubMenu("Menu".to_string(), menu_entries));
+                entries.push(EntryKind::Command("About".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About"))));
             }
 
-            // STEM Library
+            // Enrichment
+            if let Some(idx) = find_lib("Enrichment") {
+                let sub = vec![
+                    EntryKind::Command("Sangala Story Exchange".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Sangala Story Exchange"))),
+                    EntryKind::Command("Fiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Fiction"))),
+                    EntryKind::Command("Nonfiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Nonfiction"))),
+                ];
+                entries.push(EntryKind::SubMenu("Enrichment".to_string(), sub));
+            }
+
+            // Humanities
+            if let Some(idx) = find_lib("Humanities") {
+                let sub = vec![
+                    EntryKind::Command("Language Arts".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Language Arts"))),
+                    EntryKind::Command("History".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("History"))),
+                    EntryKind::Command("Social Studies".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Social Studies"))),
+                    EntryKind::Command("Political Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Political Science"))),
+                ];
+                entries.push(EntryKind::SubMenu("Humanities".to_string(), sub));
+            }
+
+            // STEM
             if let Some(idx) = find_lib("STEM") {
                 let math_entries = vec![
                     EntryKind::Command("Algebra".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Algebra"))),
@@ -905,64 +923,21 @@ impl Home {
                     EntryKind::Command("Physics".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Physics"))),
                     EntryKind::Command("Earth Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Earth Science"))),
                 ];
-                let stem_entries = vec![
-                    EntryKind::RadioButton("STEM (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
-                    EntryKind::Separator,
+                let sub = vec![
                     EntryKind::SubMenu("Mathematics".to_string(), math_entries),
                     EntryKind::SubMenu("Science".to_string(), science_entries),
                     EntryKind::Command("Engineering".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Engineering"))),
                 ];
-                taxonomy_entries.push(EntryKind::SubMenu("STEM".to_string(), stem_entries));
+                entries.push(EntryKind::SubMenu("STEM".to_string(), sub));
             }
 
-            // Humanities Library
-            if let Some(idx) = find_lib("Humanities") {
-                let entries = vec![
-                    EntryKind::RadioButton("Humanities (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
-                    EntryKind::Separator,
-                    EntryKind::Command("Language Arts".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Language Arts"))),
-                    EntryKind::Command("History".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("History"))),
-                    EntryKind::Command("Social Studies".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Social Studies"))),
-                    EntryKind::Command("Political Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Political Science"))),
-                ];
-                taxonomy_entries.push(EntryKind::SubMenu("Humanities".to_string(), entries));
-            }
-
-            // Enrichment Library
-            if let Some(idx) = find_lib("Enrichment") {
-                let entries = vec![
-                    EntryKind::RadioButton("Enrichment (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
-                    EntryKind::Separator,
-                    EntryKind::Command("Sangala Story Exchange".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Sangala Story Exchange"))),
-                    EntryKind::Command("Fiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Fiction"))),
-                    EntryKind::Command("Nonfiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Nonfiction"))),
-                ];
-                taxonomy_entries.push(EntryKind::SubMenu("Enrichment".to_string(), entries));
-            }
-
-            // Resources Library
+            // Resources
             if let Some(idx) = find_lib("Resources") {
-                let entries = vec![
-                    EntryKind::RadioButton("Resources (All)".to_string(), EntryId::LoadLibrary(idx), idx == selected_library),
-                    EntryKind::Separator,
+                let sub = vec![
                     EntryKind::Command("REACH for Uganda Newsletters".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("REACH for Uganda Newsletters"))),
                 ];
-                taxonomy_entries.push(EntryKind::SubMenu("Resources".to_string(), entries));
+                entries.push(EntryKind::SubMenu("Resources".to_string(), sub));
             }
-            let sort_entries = vec![
-                EntryKind::RadioButton("Date Added".to_string(),
-                                       EntryId::Sort(SortMethod::Added),
-                                       self.sort_method == SortMethod::Added),
-                EntryKind::RadioButton("Title".to_string(),
-                                       EntryId::Sort(SortMethod::Title),
-                                       self.sort_method == SortMethod::Title),
-                EntryKind::RadioButton("Author".to_string(),
-                                       EntryId::Sort(SortMethod::Author),
-                                       self.sort_method == SortMethod::Author),
-            ];
-            let mut entries = taxonomy_entries;
-            entries.push(EntryKind::Separator);
-            entries.push(EntryKind::SubMenu("Sort by".to_string(), sort_entries));
 
             let title_menu = Menu::new(rect, ViewId::TitleMenu, MenuKind::DropDown, entries, context);
             rq.add(RenderData::new(title_menu.id(), *title_menu.rect(), UpdateMode::Gui));
