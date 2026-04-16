@@ -163,44 +163,40 @@ impl Home {
             .map(|p| PathBuf::from(p))
             .filter(|p| p.exists());
 
-        let pages_count;
+        let mut shelf = Shelf::new(rect![rect.min.x, y_start,
+                                         rect.max.x, rect.max.y - small_height - small_thickness],
+                                   library_settings.first_column,
+                                   library_settings.second_column,
+                                   library_settings.thumbnail_previews);
+
+        let max_lines = shelf.max_lines;
+        let pages_count = (visible_books.len() as f32 / max_lines as f32).ceil() as usize;
+        let index_lower = current_page * max_lines;
+        let index_upper = (index_lower + max_lines).min(visible_books.len());
+
+        shelf.update(&visible_books[index_lower..index_upper], hub, &mut RenderQueue::new(), context);
+
+        children.push(Box::new(shelf) as Box<dyn View>);
+
+        let separator = Filler::new(rect![rect.min.x, rect.max.y - small_height - small_thickness,
+                                          rect.max.x, rect.max.y - small_height + big_thickness],
+                                    BLACK);
+        children.push(Box::new(separator) as Box<dyn View>);
+
+        let bottom_bar = BottomBar::new(rect![rect.min.x, rect.max.y - small_height + big_thickness,
+                                              rect.max.x, rect.max.y],
+                                        current_page,
+                                        pages_count,
+                                        &library_settings.name,
+                                        count,
+                                        false);
+        children.push(Box::new(bottom_bar) as Box<dyn View>);
 
         if let Some(ref image_path) = home_image_path {
-            // Display home image instead of the shelf
-            pages_count = 0;
             let image_view = HomeImage::new(rect![rect.min.x, y_start,
                                                    rect.max.x, rect.max.y],
                                              image_path.clone());
             children.push(Box::new(image_view) as Box<dyn View>);
-        } else {
-            let mut shelf = Shelf::new(rect![rect.min.x, y_start,
-                                             rect.max.x, rect.max.y - small_height - small_thickness],
-                                       library_settings.first_column,
-                                       library_settings.second_column,
-                                       library_settings.thumbnail_previews);
-
-            let max_lines = shelf.max_lines;
-            pages_count = (visible_books.len() as f32 / max_lines as f32).ceil() as usize;
-            let index_lower = current_page * max_lines;
-            let index_upper = (index_lower + max_lines).min(visible_books.len());
-
-            shelf.update(&visible_books[index_lower..index_upper], hub, &mut RenderQueue::new(), context);
-
-            children.push(Box::new(shelf) as Box<dyn View>);
-
-            let separator = Filler::new(rect![rect.min.x, rect.max.y - small_height - small_thickness,
-                                              rect.max.x, rect.max.y - small_height + big_thickness],
-                                        BLACK);
-            children.push(Box::new(separator) as Box<dyn View>);
-
-            let bottom_bar = BottomBar::new(rect![rect.min.x, rect.max.y - small_height + big_thickness,
-                                                  rect.max.x, rect.max.y],
-                                            current_page,
-                                            pages_count,
-                                            &library_settings.name,
-                                            count,
-                                            false);
-            children.push(Box::new(bottom_bar) as Box<dyn View>);
         }
 
         rq.add(RenderData::new(id, rect, UpdateMode::Full));
@@ -1244,6 +1240,13 @@ impl Home {
         }
     }
 
+    fn remove_home_image(&mut self, rq: &mut RenderQueue) {
+        if let Some(index) = self.children.iter().position(|c| c.as_ref().is::<HomeImage>()) {
+            rq.add(RenderData::expose(*self.child(index).rect(), UpdateMode::Full));
+            self.children.remove(index);
+        }
+    }
+
     fn load_library(&mut self, index: usize, hub: &Hub, rq: &mut RenderQueue, context: &mut Context) {
         if index == context.settings.selected_library {
             return;
@@ -1602,10 +1605,12 @@ impl View for Home {
                 true
             },
             Event::Select(EntryId::LoadLibrary(index)) => {
+                self.remove_home_image(rq);
                 self.load_library(index, hub, rq, context);
                 true
             },
             Event::Select(EntryId::LoadLibraryAndSelectDirectory(index, ref path)) => {
+                self.remove_home_image(rq);
                 if index != context.settings.selected_library {
                     self.load_library(index, hub, rq, context);
                 }

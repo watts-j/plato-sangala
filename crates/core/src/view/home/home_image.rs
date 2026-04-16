@@ -38,7 +38,7 @@ impl View for HomeImage {
             if let Some((width, height)) = doc.dims(0) {
                 let w_ratio = self.rect.width() as f32 / width;
                 let h_ratio = self.rect.height() as f32 / height;
-                let scale = w_ratio.min(h_ratio);
+                let scale = w_ratio.max(h_ratio);
                 if let Some((pixmap, _)) = doc.pixmap(Location::Exact(0),
                                                       scale,
                                                       CURRENT_DEVICE.color_samples()) {
