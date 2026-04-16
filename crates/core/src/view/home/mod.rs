@@ -105,11 +105,7 @@ impl Home {
         let current_page = 0;
         let mut shelf_index = 2;
 
-        let library_name = if context.settings.home.home_image.is_some() {
-            "Menu".to_string()
-        } else {
-            context.settings.libraries[selected_library].name.clone()
-        };
+        let library_name = context.settings.libraries[selected_library].name.clone();
         let top_bar = TopBar::new(rect![rect.min.x, rect.min.y,
                                         rect.max.x, rect.min.y + small_height - small_thickness],
                                   Event::Toggle(ViewId::SearchBar),
@@ -163,10 +159,6 @@ impl Home {
         let selected_library = context.settings.selected_library;
         let library_settings = &context.settings.libraries[selected_library];
 
-        let home_image_path = context.settings.home.home_image.as_ref()
-            .map(|p| PathBuf::from(p))
-            .filter(|p| p.exists());
-
         let mut shelf = Shelf::new(rect![rect.min.x, y_start,
                                          rect.max.x, rect.max.y - small_height - small_thickness],
                                    library_settings.first_column,
@@ -195,13 +187,6 @@ impl Home {
                                         count,
                                         false);
         children.push(Box::new(bottom_bar) as Box<dyn View>);
-
-        if let Some(ref image_path) = home_image_path {
-            let image_view = HomeImage::new(rect![rect.min.x, y_start,
-                                                   rect.max.x, rect.max.y],
-                                             image_path.clone());
-            children.push(Box::new(image_view) as Box<dyn View>);
-        }
 
         rq.add(RenderData::new(id, rect, UpdateMode::Full));
 
@@ -1609,12 +1594,10 @@ impl View for Home {
                 true
             },
             Event::Select(EntryId::LoadLibrary(index)) => {
-                self.remove_home_image(rq);
                 self.load_library(index, hub, rq, context);
                 true
             },
             Event::Select(EntryId::LoadLibraryAndSelectDirectory(index, ref path)) => {
-                self.remove_home_image(rq);
                 if index != context.settings.selected_library {
                     self.load_library(index, hub, rq, context);
                 }
