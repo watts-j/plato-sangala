@@ -94,18 +94,8 @@ jobs:
           mkdir -p "${PKG}"
 
           # --- KFMon + NickelMenu from previous working release ---
-          # Rebuild KoboRoot.tgz with updated plato-autostart.sh delay
-          mkdir -p koboroot-rebuild
-          cd koboroot-rebuild
-          tar -xzf ../prev-release/.kobo/KoboRoot.tgz
-          cp ../sangala/kobo-assets/autostart/plato-autostart.sh usr/local/bin/plato-autostart.sh
-          chmod +x usr/local/bin/plato-autostart.sh
-          tar -czf KoboRoot.tgz etc mnt usr
-          cd ..
-
-          # .kobo/ (rebuilt KoboRoot.tgz, Kobo config, screensaver)
+          # Use the original unmodified KoboRoot.tgz from v2.3
           cp -R prev-release/.kobo "${PKG}/"
-          cp koboroot-rebuild/KoboRoot.tgz "${PKG}/.kobo/KoboRoot.tgz"
 
           # .adds/kfmon/ — KFMon binary + config
           mkdir -p "${PKG}/.adds"
