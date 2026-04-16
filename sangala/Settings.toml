@@ -13,7 +13,6 @@ auto-suspend = 30.0
 auto-power-off = 3.0
 time-format = "%H:%M"
 date-format = "%A, %B %-d, %Y"
-selected-library = 4
 
 # Library: STEM
 [[libraries]]

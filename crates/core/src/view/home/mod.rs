@@ -105,7 +105,11 @@ impl Home {
         let current_page = 0;
         let mut shelf_index = 2;
 
-        let library_name = context.settings.libraries[selected_library].name.clone();
+        let library_name = if context.settings.home.home_image.is_some() {
+            "Menu".to_string()
+        } else {
+            context.settings.libraries[selected_library].name.clone()
+        };
         let top_bar = TopBar::new(rect![rect.min.x, rect.min.y,
                                         rect.max.x, rect.min.y + small_height - small_thickness],
                                   Event::Toggle(ViewId::SearchBar),
