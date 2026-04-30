@@ -67,7 +67,7 @@ fn query_to_content(query: &str, language: &String, fuzzy: bool, target: Option<
                 if !body.trim_start().starts_with("<h2") {
                     content.push_str(&format!("<h2 class=\"headword\">{}</h2>\n", head.replace('<', "&lt;").replace('>', "&gt;")));
                 }
-                if body.trim_start().starts_with('<') {
+                if body.trim_start().starts_with('<') || body.contains('<') {
                     content.push_str(&body);
                 } else {
                     content.push_str(&format!("<pre>{}</pre>", body.replace('<', "&lt;").replace('>', "&gt;")));
