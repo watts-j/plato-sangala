@@ -86,7 +86,6 @@ pub fn toggle_main_menu(view: &mut dyn View, rect: Rectangle, enable: Option<boo
                                EntryKind::SubMenu("Applications".to_string(), apps),
                                EntryKind::Separator];
 
-        entries.push(EntryKind::Command("Reboot".to_string(), EntryId::Reboot));
         entries.push(EntryKind::Command("Power Off".to_string(), EntryId::PowerOff));
 
         let main_menu = Menu::new(rect, ViewId::MainMenu, MenuKind::DropDown, entries, context);
