@@ -4,8 +4,7 @@ WORKDIR=$(dirname "$0")
 cd "$WORKDIR" || exit 1
 
 PLATO_SET_FRAMEBUFFER_DEPTH=1
-# Dictionary conversion is slow; only enable when new .ifo dictionaries are added
-# PLATO_CONVERT_DICTIONARIES=1
+PLATO_CONVERT_DICTIONARIES=1
 
 # shellcheck disable=SC1091
 [ -e config.sh ] && . config.sh
