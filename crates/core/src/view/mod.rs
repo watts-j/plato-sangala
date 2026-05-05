@@ -580,6 +580,7 @@ pub enum EntryId {
     SetTimeMinute(u32),
     Reboot,
     PowerOff,
+    ConnectUSB,
     Quit,
 }
 

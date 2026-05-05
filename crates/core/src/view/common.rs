@@ -86,6 +86,7 @@ pub fn toggle_main_menu(view: &mut dyn View, rect: Rectangle, enable: Option<boo
                                EntryKind::SubMenu("Applications".to_string(), apps),
                                EntryKind::Separator];
 
+        entries.push(EntryKind::Command("Connect USB".to_string(), EntryId::ConnectUSB));
         entries.push(EntryKind::Command("Power Off".to_string(), EntryId::PowerOff));
 
         let main_menu = Menu::new(rect, ViewId::MainMenu, MenuKind::DropDown, entries, context);

@@ -976,6 +976,9 @@ pub fn run() -> Result<(), Error> {
                 exit_status = ExitStatus::Reboot;
                 break;
             },
+            Event::Select(EntryId::ConnectUSB) => {
+                tx.send(Event::PrepareShare).ok();
+            },
             Event::Select(EntryId::PowerOff) => {
                 power_off(view.as_mut(), &mut history, &mut updating, &mut context);
                 exit_status = ExitStatus::PowerOff;
