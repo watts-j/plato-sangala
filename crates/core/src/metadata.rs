@@ -771,14 +771,6 @@ pub fn extract_metadata_from_document(prefix: &Path, info: &mut Info) {
                 Ok(doc) => {
                     info.title = doc.title().unwrap_or_default();
                     info.author = doc.author().unwrap_or_default();
-                    info.year = doc.year().unwrap_or_default();
-                    info.publisher = doc.publisher().unwrap_or_default();
-                    if let Some((title, index)) = doc.series() {
-                        info.series = title;
-                        info.number = index;
-                    }
-                    info.language = doc.language().unwrap_or_default();
-                    info.categories.append(&mut doc.categories());
                 },
                 Err(e) => eprintln!("Can't open {}: {:#}.", info.file.path.display(), e),
             }
@@ -788,7 +780,6 @@ pub fn extract_metadata_from_document(prefix: &Path, info: &mut Info) {
                 Ok(doc) => {
                     info.title = doc.title().unwrap_or_default();
                     info.author = doc.author().unwrap_or_default();
-                    info.language = doc.language().unwrap_or_default();
                 },
                 Err(e) => eprintln!("Can't open {}: {:#}.", info.file.path.display(), e),
             }
@@ -807,9 +798,6 @@ pub fn extract_metadata_from_document(prefix: &Path, info: &mut Info) {
                 Some(doc) => {
                     info.title = doc.title().unwrap_or_default();
                     info.author = doc.author().unwrap_or_default();
-                    info.year = doc.year().unwrap_or_default();
-                    info.series = doc.series().unwrap_or_default();
-                    info.publisher = doc.publisher().unwrap_or_default();
                 },
                 None => eprintln!("Can't open {}.", info.file.path.display()),
             }
