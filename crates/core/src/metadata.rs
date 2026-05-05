@@ -780,6 +780,7 @@ pub fn extract_metadata_from_document(prefix: &Path, info: &mut Info) {
                 Ok(doc) => {
                     info.title = doc.title().unwrap_or_default();
                     info.author = doc.author().unwrap_or_default();
+                    info.language = doc.language().unwrap_or_default();
                 },
                 Err(e) => eprintln!("Can't open {}: {:#}.", info.file.path.display(), e),
             }
