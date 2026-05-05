@@ -880,7 +880,6 @@ impl Home {
                     EntryKind::Command("Drama".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Drama"))),
                     EntryKind::Command("Fiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Fiction"))),
                     EntryKind::Command("Nonfiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Nonfiction"))),
-                    EntryKind::Command("Philosophy".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Philosophy"))),
                     EntryKind::Command("Poetry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Poetry"))),
                 ];
                 entries.push(EntryKind::SubMenu("Enrichment".to_string(), sub));
