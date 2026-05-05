@@ -15,6 +15,10 @@ permissions:
 
 env:
   TOOLCHAIN_URL: "https://releases.linaro.org/components/toolchain/binaries/4.9-2017.01/arm-linux-gnueabihf/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz"
+  # Source of KFMon + NickelMenu binaries and the original KoboRoot.tgz with udev rules.
+  # KFMon's on_boot=true auto-launch waits for FTE completion and is what kept fresh
+  # installs from hanging on loading dots prior to v2.20.
+  PREV_RELEASE_URL: "https://github.com/watts-j/plato-sangala/releases/download/v2.3-sangala-full-build/eReader.2.3.zip"
 
 jobs:
   build:
@@ -27,7 +31,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget jq patchelf
+          sudo apt-get install -y wget jq patchelf unzip
 
       - name: Cache Linaro toolchain
         id: cache-toolchain
@@ -79,6 +83,12 @@ jobs:
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Extract KFMon + NickelMenu from v2.3 release
+        run: |
+          wget -q "$PREV_RELEASE_URL" -O prev-release.zip
+          mkdir -p prev-release
+          unzip -o prev-release.zip -d prev-release
+
       - name: Assemble shared content
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
@@ -94,10 +104,30 @@ jobs:
           # Dictionary (StarDict format, converted on first use)
           cp sangala/dictionaries/* shared-content/.adds/plato/dictionaries/
 
-          # Kobo screensaver and config (no KoboRoot.tgz)
+          # Kobo screensaver and config (KoboRoot.tgz added to install package only)
           mkdir -p shared-content/.kobo
           cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
           cp -R sangala/kobo-assets/Kobo shared-content/.kobo/
+
+          # KFMon binary + config (auto-launches Plato on FTE completion).
+          cp -R prev-release/.adds/kfmon shared-content/.adds/
+
+          # NickelMenu binary + Plato menu entry (manual launch fallback).
+          cp -R prev-release/.adds/nm shared-content/.adds/
+          cp contrib/NickelMenu/plato shared-content/.adds/nm/plato
+
+          # KFMon-watched trigger image and per-app config.
+          mkdir -p shared-content/.adds/kfmon/config
+          printf '%s\n' \
+            "[watch]" \
+            "filename = /mnt/onboard/.adds/plato/launch.png" \
+            "action = /mnt/onboard/.adds/plato/plato.sh" \
+            "label = Plato" \
+            "block_spawns = 1" \
+            "on_boot = true" \
+            > shared-content/.adds/kfmon/config/plato.ini
+          # 1x1 PNG used solely as KFMon's filesystem trigger.
+          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > shared-content/.adds/plato/launch.png
 
           # Library content (EPUBs) — dot-prefixed folders hidden from Nickel
           shopt -s dotglob
@@ -119,8 +149,16 @@ jobs:
           TAG="${{ steps.tag.outputs.tag }}"
           INSTALL="plato-sangala-${TAG}-install"
           cp -R shared-content "${INSTALL}"
-          # Add KoboRoot.tgz for first-time system setup
-          cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
+          # Rebuild KoboRoot.tgz from the v2.3 archive (KFMon + NickelMenu udev rules
+          # and binaries on the system partition) with our updated plato-autostart.sh
+          # injected as a redundant launch path.
+          mkdir -p koboroot-rebuild
+          ( cd koboroot-rebuild && \
+            tar -xzf ../prev-release/.kobo/KoboRoot.tgz && \
+            cp ../sangala/kobo-assets/koboroot/usr/local/bin/plato-autostart.sh usr/local/bin/plato-autostart.sh && \
+            chmod +x usr/local/bin/plato-autostart.sh && \
+            tar -czf KoboRoot.tgz etc mnt usr )
+          cp koboroot-rebuild/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
       - name: Copy installer script to workspace root

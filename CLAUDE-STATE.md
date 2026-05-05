@@ -4,23 +4,18 @@ Last updated: 2026-05-05
 
 ## Reference Versions
 
-- **v2.27-sangala** — Latest build (dot-prefixed libraries, dual packages, installer script, menu restructure)
-- **v2.20-sangala** — Last confirmed fresh install that worked WITHOUT a hang. Compare KoboRoot.tgz and package structure to find the difference.
-- **v2.3-sangala-full-build** — Original baseline (archived)
+- **v2.28-sangala** — Restores KFMon-based auto-launch on top of v2.27's content (next tag).
+- **v2.27-sangala** — Last build with the minimal-KoboRoot.tgz / shell-autostart approach. Hangs on fresh install.
+- **v2.19-sangala** — Last build using KFMon + NickelMenu via v2.3-derived KoboRoot.tgz. Reference for "what works".
+- **v2.3-sangala-full-build** — Original baseline; source of KFMon and NickelMenu binaries (downloaded by CI).
 
-## Critical Open Issue
+## Resolved: Fresh install hang
 
-**Fresh install hang**: Fresh installs from v2.25+ hang on loading dots and require a forced reboot. v2.20's fresh install did NOT have this problem. The root cause is unknown but is somewhere in the KoboRoot.tgz or package structure differences between v2.20 and v2.25+. This MUST be investigated by comparing the two versions.
+**History.** Fresh installs from v2.20 onward hang on loading dots until a manual power cycle. CLAUDE-STATE previously claimed v2.20 worked; that was incorrect — see commit `0189d82` ("Remove KFMon/NickelMenu, use minimal KoboRoot.tgz"), which IS v2.20-sangala and is the breaking change. v2.20 ships the same minimal 781-byte KoboRoot.tgz as v2.27. Diff between v2.20 and v2.27 inside the tgz is just `sleep 10` → `sleep 9` in plato-autostart.sh.
 
-Key differences between v2.20 and v2.25+:
-- v2.20 used KoboRoot.tgz from v2.3 release (782KB, included KFMon/NickelMenu binaries + on-animator.sh + plato-autostart.sh)
-- v2.25+ uses a custom minimal KoboRoot.tgz (781 bytes, only on-animator.sh + plato-autostart.sh)
-- v2.20 had non-dot library folders (STEM/, Humanities/, etc.) — Nickel scanned them
-- v2.25+ has dot-prefixed library folders (.STEM/, .Humanities/, etc.) — Nickel ignores them
-- The custom on-animator.sh in v2.25+ is stripped down (no KFMon, no FBInk shim)
-- The v2.20 on-animator.sh was the full KFMon version (with KFMon launch, FBInk progress bar option, etc.)
+**Cause.** Removing KFMon left fresh-install auto-launch to a naive `pidof nickel` + `sleep 9` script. On a freshly-reset device, Nickel needs much longer than 9s to finish first-boot init (build KoboReader.sqlite, scan partition, etc.); the script kills Nickel mid-init before Kobo's boot manager kills `on-animator.sh`, leaving the device painting loading dots indefinitely. KFMon's `on_boot = true` waits for FTE completion, which is why v2.3–v2.19 never had this issue.
 
-**Hypothesis**: The minimal on-animator.sh may be missing something that the full KFMon version handled during boot. Or the removal of KFMon binaries leaves dangling references. Investigate by comparing the exact on-animator.sh scripts.
+**Fix (v2.28+).** CI rebuilds KoboRoot.tgz from the v2.3 release archive (system partition: KFMon + NickelMenu udev rules and binaries) and ships KFMon's `plato.ini` with `on_boot = true` plus the trigger `launch.png`. `plato-autostart.sh` is kept as a redundant launch path. NickelMenu provides a manual-launch fallback.
 
 ## Next Tag Number
 
@@ -49,10 +44,11 @@ Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI
 
 ## Architecture
 
-- Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz)
-- No KFMon, no NickelMenu (removed in v2.20)
-- KoboRoot.tgz is minimal (781 bytes): only `on-animator.sh` + `plato-autostart.sh`
-- Boot delay: `sleep 9` in plato-autostart.sh
+- Auto-launch: KFMon `on_boot = true` watching `/mnt/onboard/.adds/plato/launch.png`. Fires after Nickel's FTE flow completes, avoiding the fresh-install race.
+- Manual launch: NickelMenu entry under Plato in Nickel's main menu.
+- Redundant fallback: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz).
+- KoboRoot.tgz is rebuilt in CI from the v2.3 release archive (KFMon + NickelMenu udev rules + binaries) with our updated `plato-autostart.sh` injected.
+- Boot delay (fallback path): `sleep 9` in plato-autostart.sh.
 - Dictionary: Wiktionary English (StarDict format), converted on-device on first use (~1-2 min)
 - Metadata extraction: title and author only (series, year, publisher, categories ignored)
 - Dictionary rendering: HTML-aware (definitions containing `<` rendered as HTML)
@@ -189,7 +185,7 @@ Menu (top bar — always shows "Menu" regardless of active library)
 
 ## Known Issues / Pending
 
-- **CRITICAL: Fresh install hang** — see "Critical Open Issue" section above
+- **Fresh install hang**: addressed in v2.28 by restoring KFMon-based launch. Validate with a factory-reset Clara BW + v2.28 install package.
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
 - **Boot delay**: Currently 9s. Can be reduced further if testing shows stability.
@@ -208,7 +204,8 @@ Menu (top bar — always shows "Menu" regardless of active library)
 7. The v2.3-sangala-full-build release on GitHub is the original source of KFMon/NickelMenu binaries
 8. Plato reads `belongs-to-collection` for series metadata even when Calibre doesn't show it — strip unwanted metadata fields in extraction code
 9. For long sessions, start fresh and read CLAUDE-STATE.md for context
-10. Auto-launch is handled by `plato-autostart.sh` (system partition), not KFMon
+10. Auto-launch on fresh installs requires an FTE-aware trigger. `pidof nickel` + a fixed sleep is not enough — KFMon's `on_boot = true` is the proven path.
 11. Nickel ignores directories starting with `.` — use dot-prefixed library folders to prevent Nickel from scanning EPUBs
 12. Shell glob `*` does not match dot-files/directories — use `shopt -s dotglob` in bash
-13. v2.20 used the KoboRoot.tgz from the v2.3 release (with KFMon) and fresh installs worked fine. The minimal custom KoboRoot.tgz introduced in v2.20+ causes hangs on fresh install. Root cause unknown.
+13. v2.20 (commit `0189d82`) introduced the minimal KoboRoot.tgz and removed KFMon. That is the regression — every later version inherited it.
+14. Trust git history over CLAUDE-STATE.md. Verify claims against `git ls-tree`/`git diff` before acting on them.
