@@ -31,6 +31,17 @@ function Eject-Drive($driveLetter) {
     }
 }
 
+function Remove-OldLibraries($destDrive) {
+    $oldFolders = @("STEM", "Humanities", "Enrichment", "Resources", "Vocational", "Menu")
+    foreach ($folder in $oldFolders) {
+        $path = Join-Path "$destDrive\" $folder
+        if (Test-Path $path) {
+            Write-Host "  Removing old folder: $folder" -ForegroundColor DarkYellow
+            Remove-Item -Path $path -Recurse -Force
+        }
+    }
+}
+
 function Copy-Package($sourcePath, $destDrive) {
     Write-Host "Copying files from $sourcePath to $destDrive\ ..." -ForegroundColor Cyan
     $items = Get-ChildItem -Path $sourcePath -Force
@@ -101,6 +112,9 @@ if ($isUpdate) {
     Write-Host ""
     Write-Host "Existing Plato installation found. Performing UPDATE." -ForegroundColor Cyan
     Write-Host ""
+
+    Write-Host "Cleaning up old library folders..." -ForegroundColor Cyan
+    Remove-OldLibraries $koboDrive
 
     Copy-Package $UpdatePath $koboDrive
 
