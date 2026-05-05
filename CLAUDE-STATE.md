@@ -4,21 +4,36 @@ Last updated: 2026-05-05
 
 ## Reference Versions
 
-- **v2.24-sangala** — Current build (menu restructure, new library, dictionary, metadata cleanup, dual packages, installer script)
-- **v2.20-sangala** — Last confirmed stable before menu restructure
-- **v2.3-sangala-full-build** — Original baseline (archived, no longer used as reference)
+- **v2.27-sangala** — Latest build (dot-prefixed libraries, dual packages, installer script, menu restructure)
+- **v2.20-sangala** — Last confirmed fresh install that worked WITHOUT a hang. Compare KoboRoot.tgz and package structure to find the difference.
+- **v2.3-sangala-full-build** — Original baseline (archived)
+
+## Critical Open Issue
+
+**Fresh install hang**: Fresh installs from v2.25+ hang on loading dots and require a forced reboot. v2.20's fresh install did NOT have this problem. The root cause is unknown but is somewhere in the KoboRoot.tgz or package structure differences between v2.20 and v2.25+. This MUST be investigated by comparing the two versions.
+
+Key differences between v2.20 and v2.25+:
+- v2.20 used KoboRoot.tgz from v2.3 release (782KB, included KFMon/NickelMenu binaries + on-animator.sh + plato-autostart.sh)
+- v2.25+ uses a custom minimal KoboRoot.tgz (781 bytes, only on-animator.sh + plato-autostart.sh)
+- v2.20 had non-dot library folders (STEM/, Humanities/, etc.) — Nickel scanned them
+- v2.25+ has dot-prefixed library folders (.STEM/, .Humanities/, etc.) — Nickel ignores them
+- The custom on-animator.sh in v2.25+ is stripped down (no KFMon, no FBInk shim)
+- The v2.20 on-animator.sh was the full KFMon version (with KFMon launch, FBInk progress bar option, etc.)
+
+**Hypothesis**: The minimal on-animator.sh may be missing something that the full KFMon version handled during boot. Or the removal of KFMon binaries leaves dangling references. Investigate by comparing the exact on-animator.sh scripts.
 
 ## Next Tag Number
 
-**v2.25-sangala**
+**v2.28-sangala**
 
 ## Package Structure
 
 Two packages produced per release:
-- **`-install.tar.gz`** — For new/factory-reset devices. Includes `.kobo/KoboRoot.tgz` for system-level auto-launch setup.
-- **`-update.tar.gz`** — For devices that already have Plato installed. No KoboRoot.tgz, no system changes, no reboot required.
+- **`-install.tar.gz`** — For new/factory-reset devices. Includes `.kobo/KoboRoot.tgz`.
+- **`-update.tar.gz`** — For devices that already have Plato installed. No KoboRoot.tgz.
+- **`install-sangala.ps1`** — Separate download. PowerShell installer script.
 
-**Installer script**: `sangala/installer/install-sangala.ps1` — PowerShell script that auto-detects the Kobo (by volume name "KOBOeReader" or `.kobo/` directory), determines install vs update, and copies the appropriate files. For fresh installs, handles the two-step process automatically.
+**Installer script**: `sangala/installer/install-sangala.ps1` — auto-detects Kobo by volume name "KOBOeReader", determines install vs update, cleans up old non-dot library folders, copies files.
 
 ## Branch
 
@@ -35,23 +50,25 @@ Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI
 ## Architecture
 
 - Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz)
-- No KFMon, no NickelMenu
+- No KFMon, no NickelMenu (removed in v2.20)
 - KoboRoot.tgz is minimal (781 bytes): only `on-animator.sh` + `plato-autostart.sh`
 - Boot delay: `sleep 9` in plato-autostart.sh
 - Dictionary: Wiktionary English (StarDict format), converted on-device on first use (~1-2 min)
 - Metadata extraction: title and author only (series, year, publisher, categories ignored)
 - Dictionary rendering: HTML-aware (definitions containing `<` rendered as HTML)
+- Library folders: dot-prefixed (.STEM, .Humanities, etc.) to hide from Nickel's scanner
+- EPUB font-size: pinch/spread gestures adjust by 0.5pt steps on reflowable docs
 
 ## Library Indices (Settings.toml)
 
-| Index | Name       | Path                    |
-|-------|------------|-------------------------|
-| 0     | STEM       | /mnt/onboard/STEM       |
-| 1     | Humanities | /mnt/onboard/Humanities |
-| 2     | Enrichment | /mnt/onboard/Enrichment |
-| 3     | Resources  | /mnt/onboard/Resources  |
-| 4     | Vocational | /mnt/onboard/Vocational |
-| 5     | Menu       | /mnt/onboard/Menu       |
+| Index | Name       | Path                      |
+|-------|------------|---------------------------|
+| 0     | STEM       | /mnt/onboard/.STEM        |
+| 1     | Humanities | /mnt/onboard/.Humanities  |
+| 2     | Enrichment | /mnt/onboard/.Enrichment  |
+| 3     | Resources  | /mnt/onboard/.Resources   |
+| 4     | Vocational | /mnt/onboard/.Vocational  |
+| 5     | Menu       | /mnt/onboard/.Menu        |
 
 `selected-library = 5` (Menu — empty library, top bar always shows "Menu")
 
@@ -59,7 +76,7 @@ Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI
 
 ```
 Menu (top bar — always shows "Menu" regardless of active library)
-├── About                          → Resources/About/
+├── About                          → .Resources/About/
 ├── Enrichment
 │   ├── Sangala Story Exchange
 │   ├── Drama
@@ -105,9 +122,11 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - Connect USB
 - Power Off
 
+(Removed: Invert Colors, Reboot)
+
 ## EPUBs Included
 
-### Enrichment/Drama
+### .Enrichment/Drama
 - A Doll's House - Henrik Ibsen
 - A Midsummer Night's Dream - William Shakespeare
 - Hamlet - William Shakespeare
@@ -119,8 +138,7 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - The Cherry Orchard - Anton Chekhov
 - The Tempest - William Shakespeare
 
-### Enrichment/Fiction
-- A Leopard in the Forest (in Sangala Story Exchange)
+### .Enrichment/Fiction
 - Crime and Punishment - Fyodor Dostoevsky
 - Dracula - Bram Stoker
 - Fables - Aesop
@@ -142,19 +160,22 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - The Verger - Somerset Maugham
 - The Way of the World - William Congreve
 
-### Enrichment/Nonfiction
+### .Enrichment/Sangala Story Exchange
+- A Leopard in the Forest
+
+### .Enrichment/Nonfiction
 - Essays - Henry David Thoreau
 - South! The Story of Shackleton - Ernest Shackleton
 - The Autobiography of Benjamin Franklin
 - Walden - Henry David Thoreau
 - Wild Animals I Have Known - Ernest Thompson Seton
 
-### Enrichment/Poetry
+### .Enrichment/Poetry
 - Lyrical Ballads - William Wordsworth
 - Poetry - William Carlos Williams
 - Poetry - William Shakespeare
 
-### STEM/Science/Biology
+### .STEM/Science/Biology
 - Photosynthesis (AP level)
 - Photosynthesis (Grade 11)
 - Photosynthesis (deeper)
@@ -162,17 +183,19 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - Pigment Chromatography Lab
 - Plant Transport
 
-### Resources
+### .Resources
 - Sangala Reader Initiative (About/)
 - Newsletter (Fall 2025) - REACH for Uganda (REACH for Uganda Newsletters/)
 
 ## Known Issues / Pending
 
+- **CRITICAL: Fresh install hang** — see "Critical Open Issue" section above
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
 - **Boot delay**: Currently 9s. Can be reduced further if testing shows stability.
-- **KoboRoot.tgz freeze**: Fresh installs trigger KoboRoot.tgz processing which can cause a temporary freeze. Solved by using separate install/update packages. Install package triggers the freeze once; update package avoids it.
-- **Installer script**: PowerShell script at `sangala/installer/install-sangala.ps1`. Currently hardcoded to v2.24 paths. Needs updating for each new release or parameterization.
+- **Installer script paths**: Currently hardcoded to v2.24 paths. Needs parameterization for new versions.
+- **Installer script download**: .ps1 file uploads to GitHub release successfully but may not be visible in the UI. Consider zipping it.
+- **Stale library folders**: When updating from pre-v2.25 builds, old non-dot library folders (STEM/, Humanities/, etc.) must be deleted. Installer script handles this, but manual installs do not.
 
 ## Key Lessons Learned
 
@@ -186,3 +209,6 @@ Menu (top bar — always shows "Menu" regardless of active library)
 8. Plato reads `belongs-to-collection` for series metadata even when Calibre doesn't show it — strip unwanted metadata fields in extraction code
 9. For long sessions, start fresh and read CLAUDE-STATE.md for context
 10. Auto-launch is handled by `plato-autostart.sh` (system partition), not KFMon
+11. Nickel ignores directories starting with `.` — use dot-prefixed library folders to prevent Nickel from scanning EPUBs
+12. Shell glob `*` does not match dot-files/directories — use `shopt -s dotglob` in bash
+13. v2.20 used the KoboRoot.tgz from the v2.3 release (with KFMon) and fresh installs worked fine. The minimal custom KoboRoot.tgz introduced in v2.20+ causes hangs on fresh install. Root cause unknown.
