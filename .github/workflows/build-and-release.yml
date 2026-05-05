@@ -124,7 +124,12 @@ jobs:
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
       - name: Copy installer script to workspace root
-        run: cp sangala/installer/install-sangala.ps1 install-sangala.ps1
+        run: |
+          cp sangala/installer/install-sangala.ps1 install-sangala.ps1
+          echo "Installer script:"
+          ls -la install-sangala.ps1
+          echo "All release files:"
+          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-update.tar.gz install-sangala.ps1
 
       - name: Upload update artifact
         uses: actions/upload-artifact@v4
