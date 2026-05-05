@@ -99,8 +99,10 @@ jobs:
           cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
           cp -R sangala/kobo-assets/Kobo shared-content/.kobo/
 
-          # Library content (EPUBs)
+          # Library content (EPUBs) — dot-prefixed folders hidden from Nickel
+          shopt -s dotglob
           cp -R sangala/library-skeleton/* shared-content/
+          shopt -u dotglob
 
           # Clean up
           find shared-content -name '.gitkeep' -delete

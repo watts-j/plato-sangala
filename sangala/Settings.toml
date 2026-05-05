@@ -18,7 +18,7 @@ selected-library = 5
 # Library: STEM
 [[libraries]]
 name = "STEM"
-path = "/mnt/onboard/STEM"
+path = "/mnt/onboard/.STEM"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
@@ -28,7 +28,7 @@ thumbnail-previews = true
 # Library: Humanities
 [[libraries]]
 name = "Humanities"
-path = "/mnt/onboard/Humanities"
+path = "/mnt/onboard/.Humanities"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
@@ -38,7 +38,7 @@ thumbnail-previews = true
 # Library: Enrichment
 [[libraries]]
 name = "Enrichment"
-path = "/mnt/onboard/Enrichment"
+path = "/mnt/onboard/.Enrichment"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
@@ -48,7 +48,7 @@ thumbnail-previews = true
 # Library: Resources
 [[libraries]]
 name = "Resources"
-path = "/mnt/onboard/Resources"
+path = "/mnt/onboard/.Resources"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
@@ -58,7 +58,7 @@ thumbnail-previews = true
 # Library: Vocational
 [[libraries]]
 name = "Vocational"
-path = "/mnt/onboard/Vocational"
+path = "/mnt/onboard/.Vocational"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
@@ -68,7 +68,7 @@ thumbnail-previews = true
 # Library: Menu (empty — used as landing page)
 [[libraries]]
 name = "Menu"
-path = "/mnt/onboard/Menu"
+path = "/mnt/onboard/.Menu"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
