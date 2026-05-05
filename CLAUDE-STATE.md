@@ -4,7 +4,7 @@ Last updated: 2026-05-05
 
 ## Reference Versions
 
-- **v2.29-sangala** — Reverts v2.28's KFMon experiment; keeps v2.27's minimal-tgz layout but waits on `/tmp/end_of_animation` instead of `sleep 9` (next tag).
+- **v2.29-sangala** — Reverts v2.28's KFMon experiment; keeps v2.27's minimal-tgz layout, autostart bumped from `sleep 9` to `sleep 12` (next tag).
 - **v2.28-sangala** — Tried to restore v2.19's KFMon-based launch. Backfired: v2.3's on-animator.sh starts KFMon AND forks plato-autostart.sh, so two launchers raced and every boot hung on dots, not just the first. Do not use.
 - **v2.27-sangala** — Minimal KoboRoot.tgz / shell-autostart approach. First-boot hangs because of fixed 9s sleep; subsequent boots work.
 - **v2.19-sangala** — Last build using KFMon + NickelMenu via v2.3-derived KoboRoot.tgz. May or may not actually have worked on Clara BW — never verified.
@@ -16,7 +16,7 @@ Last updated: 2026-05-05
 
 **v2.28 attempt (failed).** Reintroduced KFMon's `on_boot = true` from v2.3's KoboRoot.tgz and kept plato-autostart.sh as a "fallback". v2.3's `on-animator.sh` both starts KFMon and forks plato-autostart.sh; both then call plato.sh, which calls `killall -TERM nickel ... fmon`, and they race each other. Every boot hung on dots. Reverted in v2.29.
 
-**v2.29 fix.** Stay on v2.27's minimal KoboRoot.tgz layout; replace `sleep 9` with a wait for `/tmp/end_of_animation` (Nickel's "boot animation phase done" marker), capped at 60s, plus a 3s grace period.
+**v2.29 fix.** Stay on v2.27's minimal KoboRoot.tgz layout; bump `sleep 9` to `sleep 12` in plato-autostart.sh.
 
 **Recovery from v2.28.** Factory reset (hold LIGHT during power-on for ~10s) is the cleanest path. Without a reset, installing v2.29 will overwrite `on-animator.sh` with the slim no-KFMon version, leaving the v2.3-derived KFMon binaries inert in `/usr/local/kfmon/`.
 
@@ -47,7 +47,7 @@ Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI
 
 ## Architecture
 
-- Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz). Waits for Nickel's `/tmp/end_of_animation` marker (60s cap) plus 3s grace, then execs `plato.sh`.
+- Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz). Waits for `pidof nickel` then sleeps 12s, then execs `plato.sh`.
 - No KFMon, no NickelMenu.
 - KoboRoot.tgz is the committed minimal `sangala/kobo-assets/KoboRoot.tgz` (~1KB): only `etc/init.d/on-animator.sh` (slim, no KFMon hook) and `usr/local/bin/plato-autostart.sh`.
 - Dictionary: Wiktionary English (StarDict format), converted on-device on first use (~1-2 min)
@@ -186,7 +186,7 @@ Menu (top bar — always shows "Menu" regardless of active library)
 
 ## Known Issues / Pending
 
-- **Fresh install hang**: addressed in v2.29 by waiting on `/tmp/end_of_animation` instead of a fixed 9s sleep. Validate with a factory-reset Clara BW + v2.29 install package. Confirm `/tmp/end_of_animation` is the right marker on Clara BW; if it never appears, the 60s timeout fallback should still launch Plato but later than ideal.
+- **Fresh install hang**: addressed in v2.29 by bumping autostart sleep from 9s to 12s. Validate with a factory-reset Clara BW + v2.29 install package. If 12s is still too short on factory-reset, bump further.
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
 - **Boot delay**: Currently 9s. Can be reduced further if testing shows stability.
@@ -205,7 +205,7 @@ Menu (top bar — always shows "Menu" regardless of active library)
 7. The v2.3-sangala-full-build release on GitHub is the original source of KFMon/NickelMenu binaries
 8. Plato reads `belongs-to-collection` for series metadata even when Calibre doesn't show it — strip unwanted metadata fields in extraction code
 9. For long sessions, start fresh and read CLAUDE-STATE.md for context
-10. Auto-launch on fresh installs requires waiting for an actual boot signal, not a fixed sleep. `/tmp/end_of_animation` (the marker Nickel writes when its boot animation phase ends) is far cheaper than dragging KFMon back in.
+10. Don't reach for a non-trivial fix until you've ruled out a one-line one. The fresh-install hang may simply need a slightly longer post-Nickel sleep, not a marker-based gate or KFMon revival.
 11. Nickel ignores directories starting with `.` — use dot-prefixed library folders to prevent Nickel from scanning EPUBs
 12. Shell glob `*` does not match dot-files/directories — use `shopt -s dotglob` in bash
 13. v2.20 (commit `0189d82`) introduced the minimal KoboRoot.tgz and removed KFMon. v2.28 tried to undo that and made things worse — putting KFMon back alongside our plato-autostart.sh creates two competing launchers, since v2.3's on-animator.sh starts both. If KFMon is ever reintroduced, plato-autostart.sh must be removed (or made a no-op) at the same time.
