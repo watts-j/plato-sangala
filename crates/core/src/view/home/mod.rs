@@ -877,19 +877,29 @@ impl Home {
             if let Some(idx) = find_lib("Enrichment") {
                 let sub = vec![
                     EntryKind::Command("Sangala Story Exchange".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Sangala Story Exchange"))),
+                    EntryKind::Command("Drama".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Drama"))),
                     EntryKind::Command("Fiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Fiction"))),
                     EntryKind::Command("Nonfiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Nonfiction"))),
+                    EntryKind::Command("Philosophy".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Philosophy"))),
+                    EntryKind::Command("Poetry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Poetry"))),
                 ];
                 entries.push(EntryKind::SubMenu("Enrichment".to_string(), sub));
             }
 
             // Humanities
             if let Some(idx) = find_lib("Humanities") {
+                let lit_entries = vec![
+                    EntryKind::Command("Drama".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Literature in English/Drama"))),
+                    EntryKind::Command("Fiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Literature in English/Fiction"))),
+                    EntryKind::Command("Nonfiction".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Literature in English/Nonfiction"))),
+                    EntryKind::Command("Poetry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Literature in English/Poetry"))),
+                ];
                 let sub = vec![
-                    EntryKind::Command("Language Arts".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Language Arts"))),
+                    EntryKind::Command("Fine Arts".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Fine Arts"))),
+                    EntryKind::Command("Geography".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Geography"))),
                     EntryKind::Command("History".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("History"))),
-                    EntryKind::Command("Social Studies".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Social Studies"))),
-                    EntryKind::Command("Political Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Political Science"))),
+                    EntryKind::Command("Languages".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Languages"))),
+                    EntryKind::SubMenu("Literature in English".to_string(), lit_entries),
                 ];
                 entries.push(EntryKind::SubMenu("Humanities".to_string(), sub));
             }
@@ -898,21 +908,33 @@ impl Home {
             if let Some(idx) = find_lib("STEM") {
                 let math_entries = vec![
                     EntryKind::Command("Algebra".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Algebra"))),
-                    EntryKind::Command("Geometry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Geometry"))),
                     EntryKind::Command("Calculus".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Calculus"))),
+                    EntryKind::Command("Geometry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Geometry"))),
+                    EntryKind::Command("Trigonometry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Mathematics/Trigonometry"))),
                 ];
                 let science_entries = vec![
                     EntryKind::Command("Biology".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Biology"))),
                     EntryKind::Command("Chemistry".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Chemistry"))),
                     EntryKind::Command("Physics".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Physics"))),
-                    EntryKind::Command("Earth Science".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Science/Earth Science"))),
                 ];
                 let sub = vec![
+                    EntryKind::Command("Engineering".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Engineering"))),
                     EntryKind::SubMenu("Mathematics".to_string(), math_entries),
                     EntryKind::SubMenu("Science".to_string(), science_entries),
-                    EntryKind::Command("Engineering".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Engineering"))),
                 ];
                 entries.push(EntryKind::SubMenu("STEM".to_string(), sub));
+            }
+
+            // Vocational
+            if let Some(idx) = find_lib("Vocational") {
+                let sub = vec![
+                    EntryKind::Command("Agriculture".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Agriculture"))),
+                    EntryKind::Command("Clothing & Textiles".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Clothing & Textiles"))),
+                    EntryKind::Command("Economics".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Economics"))),
+                    EntryKind::Command("Entrepreneurship".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Entrepreneurship"))),
+                    EntryKind::Command("Food & Nutrition".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("Food & Nutrition"))),
+                ];
+                entries.push(EntryKind::SubMenu("Vocational".to_string(), sub));
             }
 
             // Resources

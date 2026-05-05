@@ -13,7 +13,7 @@ auto-suspend = 30.0
 auto-power-off = 3.0
 time-format = "%H:%M"
 date-format = "%A, %B %-d, %Y"
-selected-library = 4
+selected-library = 5
 
 # Library: STEM
 [[libraries]]
@@ -49,6 +49,16 @@ thumbnail-previews = true
 [[libraries]]
 name = "Resources"
 path = "/mnt/onboard/Resources"
+mode = "database"
+sort-method = "title"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
+# Library: Vocational
+[[libraries]]
+name = "Vocational"
+path = "/mnt/onboard/Vocational"
 mode = "database"
 sort-method = "title"
 first-column = "title-and-author"
