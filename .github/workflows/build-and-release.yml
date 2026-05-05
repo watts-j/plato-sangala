@@ -112,6 +112,7 @@ jobs:
           TAG="${{ steps.tag.outputs.tag }}"
           UPDATE="plato-sangala-${TAG}-update"
           cp -R shared-content "${UPDATE}"
+          cp sangala/installer/install-sangala.ps1 "${UPDATE}/"
           tar -czf "${UPDATE}.tar.gz" "${UPDATE}"
 
       - name: Assemble install package
@@ -121,6 +122,7 @@ jobs:
           cp -R shared-content "${INSTALL}"
           # Add KoboRoot.tgz for first-time system setup
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
+          cp sangala/installer/install-sangala.ps1 "${INSTALL}/"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
       - name: Upload update artifact
