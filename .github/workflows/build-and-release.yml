@@ -123,6 +123,9 @@ jobs:
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
+      - name: Copy installer script to workspace root
+        run: cp sangala/installer/install-sangala.ps1 install-sangala.ps1
+
       - name: Upload update artifact
         uses: actions/upload-artifact@v4
         with:
@@ -168,6 +171,6 @@ jobs:
           files: |
             plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
             plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
-            sangala/installer/install-sangala.ps1
+            install-sangala.ps1
           draft: false
           prerelease: false
