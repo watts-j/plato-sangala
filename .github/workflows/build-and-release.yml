@@ -99,11 +99,6 @@ jobs:
           cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
           cp -R sangala/kobo-assets/Kobo shared-content/.kobo/
 
-          # Library content (EPUBs) — dot-prefixed folders hidden from Nickel
-          shopt -s dotglob
-          cp -R sangala/library-skeleton/* shared-content/
-          shopt -u dotglob
-
           # Clean up
           find shared-content -name '.gitkeep' -delete
 
@@ -112,6 +107,12 @@ jobs:
           TAG="${{ steps.tag.outputs.tag }}"
           UPDATE="plato-sangala-${TAG}-update"
           cp -R shared-content "${UPDATE}"
+          # Library content (EPUBs) — dot-prefixed folders hidden from Nickel.
+          # Shipped only in the update package so the install package stays small.
+          shopt -s dotglob
+          cp -R sangala/library-skeleton/* "${UPDATE}/"
+          shopt -u dotglob
+          find "${UPDATE}" -name '.gitkeep' -delete
           tar -czf "${UPDATE}.tar.gz" "${UPDATE}"
 
       - name: Assemble install package
@@ -153,19 +154,27 @@ jobs:
 
             Customized Plato build for Kobo Clara BW.
 
-            ### Two packages:
+            ### Two packages, applied in sequence for a fresh install:
 
-            **`-install.tar.gz`** — For new/factory-reset devices.
-            Includes system-level auto-launch setup. Device will reboot once during first boot.
+            **`-install.tar.gz`** — Bootstrap (~30MB). System-level auto-launch
+            setup, Plato app, Settings, dictionaries, screensaver. No EPUBs.
+            Triggers an "updating" screen and one automatic reboot.
 
-            **`-update.tar.gz`** — For devices that already have Plato installed.
-            No system changes, no reboot. Just copy and eject.
+            **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
+            and the EPUB library. No system changes, no reboot.
 
-            ### Instructions
-            1. Connect Kobo to computer via USB
-            2. Extract the appropriate archive
-            3. Copy the **contents** to the root of the Kobo drive
-            4. Eject the Kobo
+            ### Fresh install
+            1. Connect Kobo via USB.
+            2. Extract `-install.tar.gz`. Copy its contents to the root of the
+               Kobo drive (be sure hidden files are visible — package contains
+               dot-prefixed folders).
+            3. Eject. Device shows "updating" and auto-reboots.
+            4. Reconnect. Extract `-update.tar.gz`. Copy contents to the drive
+               root.
+            5. Eject.
+
+            ### Subsequent updates
+            Apply only `-update.tar.gz` — same as steps 4–5 above.
 
             ### Included EPUB content
             - **STEM > Science > Biology**: Concepts of Biology

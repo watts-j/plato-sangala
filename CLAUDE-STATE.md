@@ -26,10 +26,13 @@ Last updated: 2026-05-05
 
 ## Package Structure
 
-Two packages produced per release:
-- **`-install.tar.gz`** — For new/factory-reset devices. Includes `.kobo/KoboRoot.tgz`.
-- **`-update.tar.gz`** — For devices that already have Plato installed. No KoboRoot.tgz.
+Two packages produced per release; a fresh install runs both in sequence:
+
+- **`-install.tar.gz`** — Bootstrap. System partition (`KoboRoot.tgz` with `on-animator.sh` + `plato-autostart.sh`) plus user-partition non-content (Plato app, `Settings.toml`, dictionaries, screensaver, `Kobo eReader.conf`). No EPUBs. ~30MB. Triggers Nickel's "updating" screen and an auto-reboot.
+- **`-update.tar.gz`** — Content. Same user-partition files as install **plus** the dot-prefixed library skeleton (EPUBs). No `KoboRoot.tgz`. ~80MB.
 - **`install-sangala.ps1`** — Separate download. PowerShell installer script.
+
+Fresh install flow: copy install → eject → device updates and reboots → reconnect → copy update → eject. Subsequent updates just reapply the update package.
 
 **Installer script**: `sangala/installer/install-sangala.ps1` — auto-detects Kobo by volume name "KOBOeReader", determines install vs update, cleans up old non-dot library folders, copies files.
 
