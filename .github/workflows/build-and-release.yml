@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag (e.g. v2.3.1)'
+        description: 'Release tag (e.g. v2.23)'
         required: true
 
 permissions:
@@ -79,42 +79,59 @@ jobs:
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Assemble Kobo filesystem image
+      - name: Assemble shared content
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          PKG="plato-sangala-${TAG}"
-          mkdir -p "${PKG}"
+          mkdir -p shared-content
 
-          # --- Plato application ---
-          mkdir -p "${PKG}/.adds/plato"
-          cp -R dist/* "${PKG}/.adds/plato/"
-          cp sangala/Settings.toml "${PKG}/.adds/plato/Settings.toml"
-          mkdir -p "${PKG}/.adds/plato/resources"
-          cp sangala/kobo-assets/plato-resources/home.png "${PKG}/.adds/plato/resources/home.png"
+          # Plato application
+          mkdir -p shared-content/.adds/plato
+          cp -R dist/* shared-content/.adds/plato/
+          cp sangala/Settings.toml shared-content/.adds/plato/Settings.toml
+          mkdir -p shared-content/.adds/plato/resources
+          cp sangala/kobo-assets/plato-resources/home.png shared-content/.adds/plato/resources/home.png
 
-          # --- Dictionary (StarDict format, converted on first use) ---
-          cp sangala/dictionaries/* "${PKG}/.adds/plato/dictionaries/"
+          # Dictionary (StarDict format, converted on first use)
+          cp sangala/dictionaries/* shared-content/.adds/plato/dictionaries/
 
-          # --- Kobo assets (KoboRoot.tgz, screensaver, config) ---
-          mkdir -p "${PKG}/.kobo"
-          cp sangala/kobo-assets/KoboRoot.tgz "${PKG}/.kobo/KoboRoot.tgz"
-          cp -R sangala/kobo-assets/screensaver "${PKG}/.kobo/"
-          cp -R sangala/kobo-assets/Kobo "${PKG}/.kobo/"
+          # Kobo screensaver and config (no KoboRoot.tgz)
+          mkdir -p shared-content/.kobo
+          cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
+          cp -R sangala/kobo-assets/Kobo shared-content/.kobo/
 
-          # --- Library content (EPUBs) ---
-          cp -R sangala/library-skeleton/* "${PKG}/"
+          # Library content (EPUBs)
+          cp -R sangala/library-skeleton/* shared-content/
 
           # Clean up
-          find "${PKG}" -name '.gitkeep' -delete
+          find shared-content -name '.gitkeep' -delete
 
-          # Package it
-          tar -czf "${PKG}.tar.gz" "${PKG}"
+      - name: Assemble update package
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          UPDATE="plato-sangala-${TAG}-update"
+          cp -R shared-content "${UPDATE}"
+          tar -czf "${UPDATE}.tar.gz" "${UPDATE}"
 
-      - name: Upload build artifact
+      - name: Assemble install package
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          INSTALL="plato-sangala-${TAG}-install"
+          cp -R shared-content "${INSTALL}"
+          # Add KoboRoot.tgz for first-time system setup
+          cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
+          tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
+
+      - name: Upload update artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plato-sangala-${{ steps.tag.outputs.tag }}
-          path: plato-sangala-${{ steps.tag.outputs.tag }}.tar.gz
+          name: plato-sangala-${{ steps.tag.outputs.tag }}-update
+          path: plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
+
+      - name: Upload install artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plato-sangala-${{ steps.tag.outputs.tag }}-install
+          path: plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -125,20 +142,29 @@ jobs:
             ## Plato Sangala ${{ steps.tag.outputs.tag }}
 
             Customized Plato build for Kobo Clara BW.
-            Auto-launches Plato on boot via plato-autostart.sh.
 
-            ### Installation (fresh or update)
+            ### Two packages:
+
+            **`-install.tar.gz`** — For new/factory-reset devices.
+            Includes system-level auto-launch setup. Device will reboot once during first boot.
+
+            **`-update.tar.gz`** — For devices that already have Plato installed.
+            No system changes, no reboot. Just copy and eject.
+
+            ### Instructions
             1. Connect Kobo to computer via USB
-            2. Extract the archive
-            3. Copy the **contents** of `plato-sangala-${{ steps.tag.outputs.tag }}/` to the root of the Kobo drive
-            4. Eject the Kobo — it will auto-launch Plato on boot
+            2. Extract the appropriate archive
+            3. Copy the **contents** to the root of the Kobo drive
+            4. Eject the Kobo
 
             ### Included EPUB content
-            - **STEM > Biology**: Concepts of Biology
+            - **STEM > Science > Biology**: Concepts of Biology
             - **Enrichment > Fiction**: Penrod, The Verger
             - **Enrichment > Sangala Story Exchange**: A Leopard in the Forest
-            - **Resources > About the Reader**: Sangala Reader Initiative
+            - **Resources > About**: Sangala Reader Initiative
             - **Resources > Newsletters**: Newsletter (Fall 2025) - REACH for Uganda
-          files: plato-sangala-${{ steps.tag.outputs.tag }}.tar.gz
+          files: |
+            plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
+            plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
           draft: false
           prerelease: false

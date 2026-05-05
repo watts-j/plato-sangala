@@ -10,7 +10,13 @@ Last updated: 2026-05-05
 
 ## Next Tag Number
 
-**v2.23-sangala**
+**v2.24-sangala**
+
+## Package Structure
+
+Two packages produced per release:
+- **`-install.tar.gz`** — For new/factory-reset devices. Includes `.kobo/KoboRoot.tgz` for system-level auto-launch setup.
+- **`-update.tar.gz`** — For devices that already have Plato installed. No KoboRoot.tgz, no system changes, no reboot required.
 
 ## Branch
 
