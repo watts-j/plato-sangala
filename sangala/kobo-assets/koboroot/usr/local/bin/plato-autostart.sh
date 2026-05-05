@@ -15,7 +15,11 @@ log "nickel up after ${i}s wait"
 
 # Allow Nickel to fully initialize before handing off to Plato
 sleep 12
-log "launching plato.sh"
+
+# Kill the boot-progress loop in on-animator.sh so it stops repainting
+# the loading dots over Plato's framebuffer every 250ms.
+pkill -f on-animator > /dev/null 2>&1
+log "killed on-animator; launching plato.sh"
 
 # Launch Plato
 exec /mnt/onboard/.adds/plato/plato.sh
