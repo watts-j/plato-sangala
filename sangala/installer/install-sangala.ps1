@@ -7,10 +7,10 @@ param(
 )
 
 function Find-Kobo {
-    $drives = Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 }
+    $drives = Get-WmiObject Win32_LogicalDisk
     foreach ($drive in $drives) {
         $letter = $drive.DeviceID
-        if (Test-Path "$letter\.kobo") {
+        if ($drive.VolumeName -eq "KOBOeReader" -or (Test-Path "$letter\.kobo")) {
             return $letter
         }
     }
