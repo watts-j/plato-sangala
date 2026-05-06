@@ -163,10 +163,16 @@ impl Shelf {
             return false;
         }
 
-        let split_y = self.rect.min.y + (self.rect.height() as i32 * 2) / 3;
-        let image_rect = rect![self.rect.min.x, self.rect.min.y,
-                               self.rect.max.x, split_y];
-        let label_rect = rect![self.rect.min.x, split_y,
+        // ~2.5mm of breathing room above the image. Image keeps its 2/3-of-shelf
+        // height (so a source PNG sized to the previous rect still fits without
+        // re-introducing horizontal banding); the label gets whatever's left.
+        let top_padding = scale_by_dpi(30.0, CURRENT_DEVICE.dpi) as i32;
+        let image_height = (self.rect.height() as i32 * 2) / 3;
+        let image_top = self.rect.min.y + top_padding;
+        let image_bottom = image_top + image_height;
+        let image_rect = rect![self.rect.min.x, image_top,
+                               self.rect.max.x, image_bottom];
+        let label_rect = rect![self.rect.min.x, image_bottom,
                                self.rect.max.x, self.rect.max.y];
 
         let mut doc = match open(&image_path) {
