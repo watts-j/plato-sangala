@@ -2,7 +2,7 @@ use std::path::Path;
 use crate::device::CURRENT_DEVICE;
 use crate::document::{open, Location};
 use crate::framebuffer::{Framebuffer, Pixmap};
-use crate::font::{Fonts, font_from_style, NORMAL_STYLE};
+use crate::font::{Fonts, font_from_style, WELCOME_STYLE};
 use crate::view::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue};
 use crate::geom::Rectangle;
 use crate::color::{WHITE, TEXT_NORMAL};
@@ -70,7 +70,7 @@ impl View for WelcomeScreen {
         // Render text only if the label area is dirty.
         if !self.text.is_empty() && self.label_rect.intersection(&rect).is_some() {
             let dpi = CURRENT_DEVICE.dpi;
-            let font = font_from_style(fonts, &NORMAL_STYLE, dpi);
+            let font = font_from_style(fonts, &WELCOME_STYLE, dpi);
             let x_height = font.x_heights.0 as i32;
             let plan = font.plan(&self.text, Some(self.label_rect.width() as i32), None);
             let dx = (self.label_rect.width() as i32 - plan.width) / 2;

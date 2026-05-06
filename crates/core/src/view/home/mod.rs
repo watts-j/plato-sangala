@@ -870,9 +870,9 @@ impl Home {
             };
             let mut entries: Vec<EntryKind> = Vec::new();
 
-            // About — flat command pointing to Resources/About/
-            if let Some(idx) = find_lib("Resources") {
-                entries.push(EntryKind::Command("About".to_string(), EntryId::LoadLibraryAndSelectDirectory(idx, PathBuf::from("About"))));
+            // Home — switch to the empty Menu library to show the welcome screen.
+            if let Some(idx) = find_lib("Menu") {
+                entries.push(EntryKind::Command("Home".to_string(), EntryId::LoadLibrary(idx)));
             }
 
             // Enrichment

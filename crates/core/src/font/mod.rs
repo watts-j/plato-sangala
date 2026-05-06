@@ -38,6 +38,12 @@ pub const NORMAL_STYLE: Style = Style {
     size: FONT_SIZES[1],
 };
 
+pub const WELCOME_STYLE: Style = Style {
+    family: Family::SansSerif,
+    variant: Variant::REGULAR,
+    size: FONT_SIZES[1] * 2,
+};
+
 pub const SPECIAL_STYLE: Style = Style {
     family: Family::SansSerif,
     variant: Variant::ITALIC,
