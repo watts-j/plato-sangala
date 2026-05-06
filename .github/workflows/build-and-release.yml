@@ -164,7 +164,18 @@ jobs:
             **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
             and the EPUB library. No system changes, no reboot.
 
-            ### Fresh install
+            **`install-sangala.zip`** — Optional Windows installer. Wraps a
+            PowerShell script that automates the steps below.
+
+            ### Quick install (Windows, recommended)
+            1. Download `install-sangala.zip`, `-install.tar.gz`, and
+               `-update.tar.gz` into the same folder. Extract all three.
+            2. Connect Kobo via USB.
+            3. Right-click `install-sangala.ps1` → Run with PowerShell.
+               The script auto-detects install vs. update, waits for the
+               post-reboot reconnect, and ejects when done.
+
+            ### Manual install
             1. Connect Kobo via USB.
             2. Extract `-install.tar.gz`. Copy its contents to the root of the
                Kobo drive (be sure hidden files are visible — package contains
@@ -175,7 +186,9 @@ jobs:
             5. Eject.
 
             ### Subsequent updates
-            Apply only `-update.tar.gz` — same as steps 4–5 above.
+            Apply only `-update.tar.gz` — manual steps 4–5 above, or re-run
+            the installer script (it detects the existing install and
+            applies just the update).
 
             ### Included EPUB content
             - **STEM > Science > Biology**: Concepts of Biology
