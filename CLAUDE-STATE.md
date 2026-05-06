@@ -18,11 +18,13 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.36-sangala** — **Latest pre-release.** Adds ~2.5mm top padding above the home image (image rect now starts at shelf.min.y + 30 px on Clara BW) and ships an updated `home.png` asset. Layout: 30 px top padding, 722 px image, 331 px label area on Clara BW. Promote to stable after on-device validation.
-- **v2.35-sangala** — Skipped. Tag was pushed pointing at `832847f` (padding code) before commit `4da1b6b` ("Update home image") had landed on the remote, so the v2.35 binary uses the new layout but the previous image. Do not use; ship v2.36 from the current branch tip instead.
-- **v2.34-sangala** — Pre-release; install verified on Clara BW (2026-05-06). Adds the home landing page (image + "Welcome, {welcome-name}!" label rendered by `Shelf::update` when the active library is intrinsically empty), ships the installer script inside `install-sangala.zip` instead of as a bare `.ps1`, and the .ps1 itself globs for `plato-sangala-v*-sangala-{install,update}` package folders rather than hardcoding a version.
+- **v2.38-sangala** — **Latest stable build, validated on Clara BW (2026-05-06).** Title Menu: "About" entry replaced with "Home" that switches to the empty Menu library (welcome screen). Welcome label rendered with new `WELCOME_STYLE` (= 2× `NORMAL_STYLE` size). `.Resources/About/Sangala Reader Initiative.epub` flattened to `.Resources/`, alongside `REACH for Uganda Newsletters/`.
+- **v2.37-sangala** — Superseded by v2.38. Consolidated welcome screen into a single non-tap-handling `WelcomeScreen` view; gated welcome rendering on `at_library_root` so a failed `load_library` no longer paints the welcome image where the destination shelf should be; removed the 30 px top padding (it was diagnosing as a regression cause but wasn't).
+- **v2.36-sangala** — Superseded by v2.37. First version to ship the resized 1072×772 transparent `home.png` asset along with the (since-removed) 30 px top padding.
+- **v2.35-sangala** — Skipped. Tag was pushed pointing at `832847f` (padding code) before the home-image commit `4da1b6b` had landed on the remote, so the v2.35 binary used the new layout but the previous image. Do not use.
+- **v2.34-sangala** — First version with the home landing page (image + "Welcome, {welcome-name}!" label rendered by `Shelf::update` when the active library is intrinsically empty), `install-sangala.zip` packaging, and the .ps1 globbing for `plato-sangala-v*-sangala-{install,update}` rather than hardcoding a version. Has the failed-load_library masking issue that v2.37 fixed.
 - **v2.33-sangala** — Skipped. The tag was first pushed from a stale local checkout pointing at `99ea0b4` (same commit as v2.32), so the initial v2.33 release shipped v2.32 binaries with the v2.33 label. A subsequent workflow_dispatch rebuild from the correct branch updated the assets but left the tag pointer mismatched and produced a duplicate release object. Do not use.
-- **v2.32-sangala** — **Last stable build, validated on factory-reset Clara BW (2026-05-06).** Backgrounded dictionary conversion in `plato.sh` (Plato launches without waiting for the multi-minute Wiktionary StarDict→dictd conversion). `plato-autostart.sh` waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. First-install boot to Plato visible: ~90s on Clara BW (autostart ~11s; remaining ~80s is plato.sh + Plato startup, slowed by background conversion's disk I/O contention). Subsequent boots faster.
+- **v2.32-sangala** — Previous stable build, validated on factory-reset Clara BW (2026-05-06). Backgrounded dictionary conversion in `plato.sh` (Plato launches without waiting for the multi-minute Wiktionary StarDict→dictd conversion). `plato-autostart.sh` waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. First-install boot to Plato visible: ~90s on Clara BW (autostart ~11s; remaining ~80s is plato.sh + Plato startup, slowed by background conversion's disk I/O contention). Subsequent boots faster.
 - **v2.31-sangala** — Pre-release; superseded by v2.32. Hangs on factory-reset because `sleep 12` is too short while Nickel builds `KoboReader.sqlite`; Plato launch additionally delayed by synchronous dictionary conversion in `plato.sh`.
 - **v2.30-sangala** — Previous stable. Verified on factory-reset Clara BW; install package extracts cleanly, auto-reboot fires, Plato launches with no dot-loop overlay.
 - **v2.28-sangala** — Failed KFMon experiment. Two launchers raced; every boot hung on dots. Do not use.
@@ -42,7 +44,17 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.37-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes).
+**v2.39-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes).
+
+## Welcome Name
+
+The "Welcome, {name}!" line on the home screen comes from the `welcome-name` field in the `[home]` section of `Settings.toml`. On device, that's `/mnt/onboard/.adds/plato/Settings.toml`; the placeholder shipped in builds is `welcome-name = "[name]"`.
+
+To change a single device's name in the field: edit that file directly (over USB) and reboot. The change persists until an update package is reapplied — `Settings.toml` is overwritten by every `-update.tar.gz` install, so per-device names need re-editing after each update.
+
+To change the default that ships in every new build: edit `sangala/Settings.toml` in the repo. Both shipped packages (`-install.tar.gz` and `-update.tar.gz`) bundle the file from the repo, so the new value takes effect on the next tagged release.
+
+Long-term: the PowerShell installer should prompt for a name on fresh installs and patch the field before copying. Not yet implemented.
 
 ## Package Structure
 
