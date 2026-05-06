@@ -18,7 +18,7 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.32-sangala** — **Latest stable build.** Backgrounded dictionary conversion in `plato.sh` (Plato launches without waiting for the multi-minute Wiktionary StarDict→dictd conversion). `plato-autostart.sh` waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. First-install boot to Plato visible: ~90s on Clara BW (autostart ~11s; remaining ~80s is plato.sh + Plato startup, slowed by background conversion's disk I/O contention). Subsequent boots faster.
+- **v2.32-sangala** — **Latest stable build, validated on factory-reset Clara BW (2026-05-06).** Backgrounded dictionary conversion in `plato.sh` (Plato launches without waiting for the multi-minute Wiktionary StarDict→dictd conversion). `plato-autostart.sh` waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. First-install boot to Plato visible: ~90s on Clara BW (autostart ~11s; remaining ~80s is plato.sh + Plato startup, slowed by background conversion's disk I/O contention). Subsequent boots faster.
 - **v2.31-sangala** — Pre-release; superseded by v2.32. Hangs on factory-reset because `sleep 12` is too short while Nickel builds `KoboReader.sqlite`; Plato launch additionally delayed by synchronous dictionary conversion in `plato.sh`.
 - **v2.30-sangala** — Previous stable. Verified on factory-reset Clara BW; install package extracts cleanly, auto-reboot fires, Plato launches with no dot-loop overlay.
 - **v2.28-sangala** — Failed KFMon experiment. Two launchers raced; every boot hung on dots. Do not use.
@@ -206,7 +206,7 @@ Menu (top bar — always shows "Menu" regardless of active library)
 
 ## Known Issues / Pending
 
-- **Fresh install hang**: addressed in v2.32 by waiting for `KoboReader.sqlite` to exist before killing Nickel (covers factory-reset DB build) and reducing the post-DB grace to 5s (faster on subsequent boots). Validate with a factory-reset Clara BW.
+- **Fresh install hang**: fixed in v2.32 by waiting for `KoboReader.sqlite` to exist before killing Nickel (covers factory-reset DB build) and reducing the post-DB grace to 5s (faster on subsequent boots). Validated on factory-reset Clara BW (2026-05-06).
 
 ## Long-term TODO
 
@@ -217,7 +217,6 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - **Reduce first-install boot time by deprioritizing background conversion.** v2.32 backgrounds `convert-dictionary.sh` so Plato can launch without waiting on it, but the conversion's disk I/O contends with Plato's startup reads on Clara BW's slow flash, stretching the post-`exec plato.sh` window to ~80s. Wrap the backgrounded call with `nice -n 19` and an initial `sleep 30` so Plato has uncontended I/O during its startup. Expected savings: 30–60s on first boot. Side effect: the conversion itself takes longer. Skip if Option B lands.
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
-- **Installer script paths**: `sangala/installer/install-sangala.ps1` is hardcoded to `plato-sangala-v2.24-sangala-install` / `-update`. Update to current tag or parameterize (e.g., glob for `plato-sangala-v*-sangala-install` to pick whatever the user extracted).
 - **Installer script download**: .ps1 file uploads to GitHub release successfully but may not be visible in the UI. Consider zipping it.
 - **Stale library folders**: When updating from pre-v2.25 builds, old non-dot library folders (STEM/, Humanities/, etc.) must be deleted. Installer script handles this, but manual installs do not.
 

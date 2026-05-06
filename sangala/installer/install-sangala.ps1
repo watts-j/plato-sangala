@@ -1,10 +1,32 @@
 # Sangala Reader Installer
 # Detects Kobo device, determines install vs update, and copies files.
+#
+# By default, picks up `plato-sangala-v*-sangala-install` and
+# `plato-sangala-v*-sangala-update` folders next to this script
+# (highest version wins if multiple are present). Override with
+# -InstallPath / -UpdatePath if you need a specific folder.
 
 param(
-    [string]$InstallPath = "$PSScriptRoot\plato-sangala-v2.24-sangala-install",
-    [string]$UpdatePath = "$PSScriptRoot\plato-sangala-v2.24-sangala-update"
+    [string]$InstallPath,
+    [string]$UpdatePath
 )
+
+function Get-PackageVersion($name) {
+    if ($name -match 'v(\d+)\.(\d+)') {
+        return [version]"$($Matches[1]).$($Matches[2])"
+    }
+    return [version]"0.0"
+}
+
+function Find-LatestPackage($suffix) {
+    $pattern = "plato-sangala-v*-sangala-$suffix"
+    $found = @(Get-ChildItem -Path $PSScriptRoot -Directory -Filter $pattern -ErrorAction SilentlyContinue)
+    if ($found.Count -eq 0) {
+        return $null
+    }
+    $sorted = $found | Sort-Object { Get-PackageVersion $_.Name } -Descending
+    return $sorted[0].FullName
+}
 
 function Find-Kobo {
     $drives = Get-WmiObject Win32_LogicalDisk
@@ -84,15 +106,31 @@ Write-Host "  Sangala Reader Installer" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor White
 Write-Host ""
 
+# Auto-detect package folders next to this script if not explicitly provided
+if (-not $InstallPath) {
+    $InstallPath = Find-LatestPackage "install"
+}
+if (-not $UpdatePath) {
+    $UpdatePath = Find-LatestPackage "update"
+}
+
 # Validate package paths
-if (-not (Test-Path $InstallPath)) {
-    Write-Host "ERROR: Install package not found at $InstallPath" -ForegroundColor Red
+if (-not $InstallPath -or -not (Test-Path $InstallPath)) {
+    Write-Host "ERROR: Install package not found." -ForegroundColor Red
+    Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-install' next to this script," -ForegroundColor Red
+    Write-Host "  or pass -InstallPath <path> explicitly." -ForegroundColor Red
     exit 1
 }
-if (-not (Test-Path $UpdatePath)) {
-    Write-Host "ERROR: Update package not found at $UpdatePath" -ForegroundColor Red
+if (-not $UpdatePath -or -not (Test-Path $UpdatePath)) {
+    Write-Host "ERROR: Update package not found." -ForegroundColor Red
+    Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-update' next to this script," -ForegroundColor Red
+    Write-Host "  or pass -UpdatePath <path> explicitly." -ForegroundColor Red
     exit 1
 }
+
+Write-Host "Install package: $(Split-Path $InstallPath -Leaf)" -ForegroundColor DarkGray
+Write-Host "Update package:  $(Split-Path $UpdatePath -Leaf)" -ForegroundColor DarkGray
+Write-Host ""
 
 # Detect Kobo
 Write-Host "Looking for Kobo device..." -ForegroundColor Cyan
