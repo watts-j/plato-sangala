@@ -187,4 +187,6 @@ jobs:
             plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
             install-sangala.ps1
           draft: false
-          prerelease: false
+          # Tag releases ship as pre-release by default; manually promote to
+          # stable on the GitHub Releases page once a device test passes.
+          prerelease: true

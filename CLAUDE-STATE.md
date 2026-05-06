@@ -4,11 +4,11 @@ Last updated: 2026-05-05
 
 ## Reference Versions
 
-- **v2.29-sangala** — Reverts v2.28's KFMon experiment; keeps v2.27's minimal-tgz layout, autostart bumped from `sleep 9` to `sleep 12` (next tag).
-- **v2.28-sangala** — Tried to restore v2.19's KFMon-based launch. Backfired: v2.3's on-animator.sh starts KFMon AND forks plato-autostart.sh, so two launchers raced and every boot hung on dots, not just the first. Do not use.
-- **v2.27-sangala** — Minimal KoboRoot.tgz / shell-autostart approach. First-boot hangs because of fixed 9s sleep; subsequent boots work.
-- **v2.19-sangala** — Last build using KFMon + NickelMenu via v2.3-derived KoboRoot.tgz. May or may not actually have worked on Clara BW — never verified.
-- **v2.3-sangala-full-build** — Original baseline.
+- **v2.30-sangala** — **Latest stable build.** Verified on factory-reset Clara BW: install package extracts cleanly, auto-reboot fires, Plato launches with no dot-loop overlay (`pkill -f on-animator` in `plato-autostart.sh` does it). Future tags ship as pre-release by default and must be manually promoted on the GitHub Releases page after a device test.
+- **v2.28-sangala** — Failed KFMon experiment. Two launchers raced; every boot hung on dots. Do not use.
+- **v2.27-sangala** — Pre-fix layout (`sleep 9`, no on-animator kill). First boot hangs on factory-reset.
+- **v2.19-sangala** — Last build using KFMon + NickelMenu. Never verified on Clara BW.
+- **v2.3-sangala-full-build** — Original baseline. Predates Clara BW support; do not extract its KoboRoot.tgz on Clara BW.
 
 ## Fresh install hang
 
@@ -22,7 +22,7 @@ Last updated: 2026-05-05
 
 ## Next Tag Number
 
-**v2.28-sangala**
+**v2.31-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes)
 
 ## Package Structure
 
