@@ -305,6 +305,8 @@ pub struct HomeSettings {
     pub max_trash_size: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub home_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub welcome_name: Option<String>,
 }
 
 
@@ -427,6 +429,7 @@ impl Default for HomeSettings {
             max_levels: 3,
             max_trash_size: 32 * (1 << 20),
             home_image: None,
+            welcome_name: None,
         }
     }
 }

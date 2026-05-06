@@ -87,6 +87,7 @@ navigation-bar = true
 max-levels = 3
 max-trash-size = 33_554_432
 home-image = "/mnt/onboard/.adds/plato/resources/home.png"
+welcome-name = "[name]"
 
 [reader]
 finished = "close"

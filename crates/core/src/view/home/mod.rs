@@ -6,7 +6,6 @@ mod directory;
 mod shelf;
 mod book;
 mod bottom_bar;
-mod home_image;
 
 use std::fs;
 use std::mem;
@@ -40,7 +39,6 @@ use self::address_bar::AddressBar;
 use self::navigation_bar::NavigationBar;
 use self::shelf::Shelf;
 use self::bottom_bar::BottomBar;
-use self::home_image::HomeImage;
 use crate::gesture::GestureEvent;
 use crate::geom::{Rectangle, Dir, DiagDir, CycleDir, halves};
 use crate::input::{DeviceEvent, ButtonCode, ButtonStatus};
@@ -1246,13 +1244,6 @@ impl Home {
             let search_visible = rlocate::<SearchBar>(self).is_some();
             self.update_top_bar(search_visible, rq, context);
             self.update_bottom_bar(rq, context);
-        }
-    }
-
-    fn remove_home_image(&mut self, rq: &mut RenderQueue) {
-        if let Some(index) = self.children.iter().position(|c| c.as_ref().is::<HomeImage>()) {
-            rq.add(RenderData::expose(*self.child(index).rect(), UpdateMode::Full));
-            self.children.remove(index);
         }
     }
 

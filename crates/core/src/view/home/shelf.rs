@@ -4,10 +4,12 @@ use std::path::PathBuf;
 use lazy_static::lazy_static;
 use super::book::Book;
 use crate::device::CURRENT_DEVICE;
-use crate::view::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue, RenderData};
+use crate::view::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue, RenderData, Align};
 use crate::view::{BIG_BAR_HEIGHT, THICKNESS_MEDIUM};
 use crate::view::filler::Filler;
-use crate::document::open;
+use crate::view::image::Image;
+use crate::view::label::Label;
+use crate::document::{open, Location};
 use crate::framebuffer::{Framebuffer, UpdateMode};
 use crate::settings::{FirstColumn, SecondColumn};
 use crate::geom::{Rectangle, Dir, CycleDir, halves};
@@ -125,15 +127,60 @@ impl Shelf {
         }
 
         if metadata.len() < max_lines {
-            let y_start = y_pos + if metadata.is_empty() { 0 } else { thickness };
-            let filler = Filler::new(rect![self.rect.min.x, y_start,
-                                           self.rect.max.x, self.rect.max.y],
-                                     WHITE);
-            self.children.push(Box::new(filler) as Box<dyn View>);
+            let pushed_welcome = metadata.is_empty() && self.try_push_welcome_screen(context);
+            if !pushed_welcome {
+                let y_start = y_pos + if metadata.is_empty() { 0 } else { thickness };
+                let filler = Filler::new(rect![self.rect.min.x, y_start,
+                                               self.rect.max.x, self.rect.max.y],
+                                         WHITE);
+                self.children.push(Box::new(filler) as Box<dyn View>);
+            }
         }
 
         self.max_lines = max_lines;
         rq.add(RenderData::new(self.id, self.rect, UpdateMode::Partial));
+    }
+
+    // When the library is empty and both `home-image` and `welcome-name` are
+    // configured, render a landing screen: image in the top 2/3, "Welcome,
+    // {name}!" centered in the bottom 1/3. Returns false (so the caller falls
+    // back to a plain white filler) if either setting is missing or the image
+    // can't be opened.
+    fn try_push_welcome_screen(&mut self, context: &Context) -> bool {
+        let image_path = match context.settings.home.home_image.as_ref() {
+            Some(p) if !p.is_empty() => PathBuf::from(p),
+            _ => return false,
+        };
+        let name = match context.settings.home.welcome_name.as_ref() {
+            Some(n) if !n.is_empty() => n.clone(),
+            _ => return false,
+        };
+
+        let split_y = self.rect.min.y + (self.rect.height() as i32 * 2) / 3;
+        let image_rect = rect![self.rect.min.x, self.rect.min.y,
+                               self.rect.max.x, split_y];
+        let label_rect = rect![self.rect.min.x, split_y,
+                               self.rect.max.x, self.rect.max.y];
+
+        let mut doc = match open(&image_path) {
+            Some(d) => d,
+            None => return false,
+        };
+        let (src_w, src_h) = match doc.dims(0) {
+            Some(d) => d,
+            None => return false,
+        };
+        let scale = (image_rect.width() as f32 / src_w)
+            .min(image_rect.height() as f32 / src_h);
+        let pixmap = match doc.pixmap(Location::Exact(0), scale, CURRENT_DEVICE.color_samples()) {
+            Some((p, _)) => p,
+            None => return false,
+        };
+
+        self.children.push(Box::new(Image::new(image_rect, pixmap)) as Box<dyn View>);
+        let label = Label::new(label_rect, format!("Welcome, {}!", name), Align::Center);
+        self.children.push(Box::new(label) as Box<dyn View>);
+        true
     }
 }
 
