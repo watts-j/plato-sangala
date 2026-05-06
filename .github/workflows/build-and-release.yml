@@ -124,13 +124,14 @@ jobs:
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
-      - name: Copy installer script to workspace root
+      - name: Bundle installer script
         run: |
+          # Wrap the .ps1 in a .zip so it's a normal downloadable asset.
+          # GitHub's release UI sometimes hides bare .ps1 attachments.
           cp sangala/installer/install-sangala.ps1 install-sangala.ps1
-          echo "Installer script:"
-          ls -la install-sangala.ps1
+          zip install-sangala.zip install-sangala.ps1
           echo "All release files:"
-          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-update.tar.gz install-sangala.ps1
+          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-update.tar.gz install-sangala.zip
 
       - name: Upload update artifact
         uses: actions/upload-artifact@v4
@@ -185,7 +186,7 @@ jobs:
           files: |
             plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
             plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
-            install-sangala.ps1
+            install-sangala.zip
           draft: false
           # Tag releases ship as pre-release by default; manually promote to
           # stable on the GitHub Releases page once a device test passes.
