@@ -38,7 +38,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.33-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes)
+**v2.34-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes). Skipping v2.33 — that tag was first pushed from a stale local checkout pointing at `99ea0b4` (the v2.32 commit), so the v2.33 release assets ended up either matching v2.32 or, after a workflow_dispatch rebuild, mismatching the tag pointer. Cleanest path is to leave v2.33 alone and ship the home-landing-page work as v2.34 from a clean tag.
 
 ## Package Structure
 
