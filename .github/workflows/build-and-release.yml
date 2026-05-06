@@ -124,12 +124,13 @@ jobs:
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
-      - name: Bundle installer script
+      - name: Bundle installer scripts
         run: |
-          # Wrap the .ps1 in a .zip so it's a normal downloadable asset.
-          # GitHub's release UI sometimes hides bare .ps1 attachments.
+          # Wrap both .ps1 installers in a .zip so they're normal downloadable
+          # assets. GitHub's release UI sometimes hides bare .ps1 attachments.
           cp sangala/installer/install-sangala.ps1 install-sangala.ps1
-          zip install-sangala.zip install-sangala.ps1
+          cp sangala/installer/install-sangala-gui.ps1 install-sangala-gui.ps1
+          zip install-sangala.zip install-sangala.ps1 install-sangala-gui.ps1
           echo "All release files:"
           ls -la plato-sangala-*-install.tar.gz plato-sangala-*-update.tar.gz install-sangala.zip
 
@@ -164,16 +165,21 @@ jobs:
             **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
             and the EPUB library. No system changes, no reboot.
 
-            **`install-sangala.zip`** — Optional Windows installer. Wraps a
-            PowerShell script that automates the steps below.
+            **`install-sangala.zip`** — Optional Windows installer. Contains
+            two PowerShell scripts: a button-driven GUI (`install-sangala-gui.ps1`)
+            and a console version (`install-sangala.ps1`). Both automate the
+            install/update flow and prompt for the reader's name on a fresh
+            install.
 
             ### Quick install (Windows, recommended)
             1. Download `install-sangala.zip`, `-install.tar.gz`, and
                `-update.tar.gz` into the same folder. Extract all three.
             2. Connect Kobo via USB.
-            3. Right-click `install-sangala.ps1` → Run with PowerShell.
-               The script auto-detects install vs. update, waits for the
-               post-reboot reconnect, and ejects when done.
+            3. Right-click `install-sangala-gui.ps1` → Run with PowerShell.
+               (Or use `install-sangala.ps1` for the console version.)
+               The script auto-detects install vs. update, prompts for the
+               reader's name on a fresh install, waits for the post-reboot
+               reconnect, and ejects when done.
 
             ### Manual install
             1. Connect Kobo via USB.

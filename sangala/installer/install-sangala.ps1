@@ -1,15 +1,33 @@
-# Sangala Reader Installer
+# Sangala Reader Installer (CLI)
 # Detects Kobo device, determines install vs update, and copies files.
 #
 # By default, picks up `plato-sangala-v*-sangala-install` and
 # `plato-sangala-v*-sangala-update` folders next to this script
 # (highest version wins if multiple are present). Override with
 # -InstallPath / -UpdatePath if you need a specific folder.
+#
+# On a fresh install, prompts for the reader's name and patches it into
+# the package's Settings.toml so the home screen welcome line reads
+# "Welcome, <name>!". On an update, the existing on-device name is
+# preserved (read from the device's Settings.toml and patched into the
+# update package before copying), so updates don't revert the name.
+#
+# Errors and notable events are appended to install-sangala.log next to
+# the script.
 
 param(
     [string]$InstallPath,
     [string]$UpdatePath
 )
+
+$ErrorActionPreference = 'Stop'
+$LogPath = Join-Path $PSScriptRoot 'install-sangala.log'
+
+function Write-Log {
+    param([string]$Level, [string]$Message)
+    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    "$ts [$Level] $Message" | Out-File -FilePath $LogPath -Append -Encoding utf8
+}
 
 function Get-PackageVersion($name) {
     if ($name -match 'v(\d+)\.(\d+)') {
@@ -98,102 +116,166 @@ function Wait-ForKobo {
     return $drive
 }
 
+function Get-DeviceWelcomeName($driveLetter) {
+    $settingsFile = Join-Path "$driveLetter\" '.adds\plato\Settings.toml'
+    if (-not (Test-Path $settingsFile)) {
+        return $null
+    }
+    $content = Get-Content -Raw -Path $settingsFile
+    if ($content -match 'welcome-name\s*=\s*"([^"]*)"') {
+        return $Matches[1]
+    }
+    return $null
+}
+
+function Set-PackageWelcomeName($packagePath, $name) {
+    $settingsFile = Join-Path $packagePath '.adds\plato\Settings.toml'
+    if (-not (Test-Path $settingsFile)) {
+        throw "Settings.toml not found in package: $settingsFile"
+    }
+    $content = Get-Content -Raw -Path $settingsFile
+    $escaped = $name -replace '"', '\"'
+    $patched = $content -replace 'welcome-name\s*=\s*"[^"]*"', ('welcome-name = "{0}"' -f $escaped)
+    Set-Content -Path $settingsFile -Value $patched -NoNewline
+}
+
 # --- Main ---
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor White
-Write-Host "  Sangala Reader Installer" -ForegroundColor White
-Write-Host "========================================" -ForegroundColor White
-Write-Host ""
+Write-Log 'INFO' '--- CLI installer started ---'
 
-# Auto-detect package folders next to this script if not explicitly provided
-if (-not $InstallPath) {
-    $InstallPath = Find-LatestPackage "install"
-}
-if (-not $UpdatePath) {
-    $UpdatePath = Find-LatestPackage "update"
-}
+try {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor White
+    Write-Host "  Sangala Reader Installer" -ForegroundColor White
+    Write-Host "========================================" -ForegroundColor White
+    Write-Host ""
 
-# Validate package paths
-if (-not $InstallPath -or -not (Test-Path $InstallPath)) {
-    Write-Host "ERROR: Install package not found." -ForegroundColor Red
-    Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-install' next to this script," -ForegroundColor Red
-    Write-Host "  or pass -InstallPath <path> explicitly." -ForegroundColor Red
+    # Auto-detect package folders next to this script if not explicitly provided
+    if (-not $InstallPath) {
+        $InstallPath = Find-LatestPackage "install"
+    }
+    if (-not $UpdatePath) {
+        $UpdatePath = Find-LatestPackage "update"
+    }
+
+    # Validate package paths
+    if (-not $InstallPath -or -not (Test-Path $InstallPath)) {
+        Write-Log 'ERROR' 'Install package not found'
+        Write-Host "ERROR: Install package not found." -ForegroundColor Red
+        Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-install' next to this script," -ForegroundColor Red
+        Write-Host "  or pass -InstallPath <path> explicitly." -ForegroundColor Red
+        exit 1
+    }
+    if (-not $UpdatePath -or -not (Test-Path $UpdatePath)) {
+        Write-Log 'ERROR' 'Update package not found'
+        Write-Host "ERROR: Update package not found." -ForegroundColor Red
+        Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-update' next to this script," -ForegroundColor Red
+        Write-Host "  or pass -UpdatePath <path> explicitly." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Install package: $(Split-Path $InstallPath -Leaf)" -ForegroundColor DarkGray
+    Write-Host "Update package:  $(Split-Path $UpdatePath -Leaf)" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # Detect Kobo
+    Write-Host "Looking for Kobo device..." -ForegroundColor Cyan
+    $koboDrive = Find-Kobo
+
+    if ($null -eq $koboDrive) {
+        Write-Log 'ERROR' 'No Kobo device found'
+        Write-Host "No Kobo device found. Please connect the device via USB and try again." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Kobo detected at $koboDrive" -ForegroundColor Green
+    Write-Log 'INFO' "Kobo detected at $koboDrive"
+
+    # Determine install vs update
+    $isUpdate = Test-Path "$koboDrive\.adds\plato\plato"
+
+    if ($isUpdate) {
+        Write-Host ""
+        Write-Host "Existing Plato installation found. Performing UPDATE." -ForegroundColor Cyan
+        Write-Host ""
+
+        # Preserve the existing on-device welcome name through the update
+        $existingName = Get-DeviceWelcomeName $koboDrive
+        if ($existingName) {
+            Write-Host "Preserving welcome name: $existingName" -ForegroundColor DarkGray
+            Set-PackageWelcomeName $UpdatePath $existingName
+            Write-Log 'INFO' "Preserved welcome name: $existingName"
+        } else {
+            Write-Log 'WARN' 'No existing welcome name found on device; update package will use the placeholder.'
+        }
+
+        Write-Host "Cleaning up old library folders..." -ForegroundColor Cyan
+        Remove-OldLibraries $koboDrive
+
+        Copy-Package $UpdatePath $koboDrive
+
+        Write-Host ""
+        Write-Host "Ejecting device..." -ForegroundColor Cyan
+        Eject-Drive $koboDrive
+        Write-Host ""
+        Write-Host "Update complete. You may disconnect the device." -ForegroundColor Green
+        Write-Host "Power off and power on to load the new version." -ForegroundColor Yellow
+        Write-Log 'INFO' 'Update complete'
+
+    } else {
+        Write-Host ""
+        Write-Host "No existing Plato installation. Performing FRESH INSTALL." -ForegroundColor Cyan
+        Write-Host "This is a two-step process." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Prompt for the reader's name and patch both packages
+        Write-Host ""
+        $name = ''
+        while ([string]::IsNullOrWhiteSpace($name)) {
+            $name = Read-Host "Enter the reader's name (shown on the home screen)"
+            $name = $name.Trim()
+        }
+        Set-PackageWelcomeName $InstallPath $name
+        Set-PackageWelcomeName $UpdatePath $name
+        Write-Log 'INFO' "Set welcome name: $name"
+
+        # Step 1: Install package
+        Write-Host ""
+        Write-Host "--- Step 1 of 2: Installing system files ---" -ForegroundColor White
+        Copy-Package $InstallPath $koboDrive
+
+        Write-Host ""
+        Write-Host "Ejecting device..." -ForegroundColor Cyan
+        Eject-Drive $koboDrive
+
+        Write-Host ""
+        Write-Host "The device will now process system files and reboot." -ForegroundColor Yellow
+        Write-Host "This may take a few minutes. Do NOT disconnect the USB cable." -ForegroundColor Yellow
+
+        # Step 2: Wait for reconnect, then apply update
+        $koboDrive = Wait-ForKobo
+
+        Write-Host ""
+        Write-Host "--- Step 2 of 2: Applying update ---" -ForegroundColor White
+        Copy-Package $UpdatePath $koboDrive
+
+        Write-Host ""
+        Write-Host "Ejecting device..." -ForegroundColor Cyan
+        Eject-Drive $koboDrive
+        Write-Host ""
+        Write-Host "Installation complete! The device will launch Plato on next boot." -ForegroundColor Green
+        Write-Host "Do not power off the device for 15 minutes; updates are still processing." -ForegroundColor Yellow
+        Write-Log 'INFO' 'Fresh install complete'
+    }
+
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+}
+catch {
+    Write-Log 'ERROR' "Unhandled exception: $($_.Exception.Message)"
+    Write-Host ""
+    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Details written to: $LogPath" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit 1
 }
-if (-not $UpdatePath -or -not (Test-Path $UpdatePath)) {
-    Write-Host "ERROR: Update package not found." -ForegroundColor Red
-    Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-update' next to this script," -ForegroundColor Red
-    Write-Host "  or pass -UpdatePath <path> explicitly." -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "Install package: $(Split-Path $InstallPath -Leaf)" -ForegroundColor DarkGray
-Write-Host "Update package:  $(Split-Path $UpdatePath -Leaf)" -ForegroundColor DarkGray
-Write-Host ""
-
-# Detect Kobo
-Write-Host "Looking for Kobo device..." -ForegroundColor Cyan
-$koboDrive = Find-Kobo
-
-if ($null -eq $koboDrive) {
-    Write-Host "No Kobo device found. Please connect the device via USB and try again." -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "Kobo detected at $koboDrive" -ForegroundColor Green
-
-# Determine install vs update
-$isUpdate = Test-Path "$koboDrive\.adds\plato\plato"
-
-if ($isUpdate) {
-    Write-Host ""
-    Write-Host "Existing Plato installation found. Performing UPDATE." -ForegroundColor Cyan
-    Write-Host ""
-
-    Write-Host "Cleaning up old library folders..." -ForegroundColor Cyan
-    Remove-OldLibraries $koboDrive
-
-    Copy-Package $UpdatePath $koboDrive
-
-    Write-Host ""
-    Write-Host "Ejecting device..." -ForegroundColor Cyan
-    Eject-Drive $koboDrive
-    Write-Host ""
-    Write-Host "Update complete. You may disconnect the device." -ForegroundColor Green
-    Write-Host "Power off and power on to load the new version." -ForegroundColor Yellow
-
-} else {
-    Write-Host ""
-    Write-Host "No existing Plato installation. Performing FRESH INSTALL." -ForegroundColor Cyan
-    Write-Host "This is a two-step process." -ForegroundColor Yellow
-    Write-Host ""
-
-    # Step 1: Install package
-    Write-Host "--- Step 1 of 2: Installing system files ---" -ForegroundColor White
-    Copy-Package $InstallPath $koboDrive
-
-    Write-Host ""
-    Write-Host "Ejecting device..." -ForegroundColor Cyan
-    Eject-Drive $koboDrive
-
-    Write-Host ""
-    Write-Host "The device will now process system files and reboot." -ForegroundColor Yellow
-    Write-Host "This may take a few minutes. Do NOT disconnect the USB cable." -ForegroundColor Yellow
-
-    # Step 2: Wait for reconnect, then apply update
-    $koboDrive = Wait-ForKobo
-
-    Write-Host ""
-    Write-Host "--- Step 2 of 2: Applying update ---" -ForegroundColor White
-    Copy-Package $UpdatePath $koboDrive
-
-    Write-Host ""
-    Write-Host "Ejecting device..." -ForegroundColor Cyan
-    Eject-Drive $koboDrive
-    Write-Host ""
-    Write-Host "Installation complete! The device will launch Plato on next boot." -ForegroundColor Green
-}
-
-Write-Host ""
-Read-Host "Press Enter to exit"

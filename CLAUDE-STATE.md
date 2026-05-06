@@ -54,7 +54,7 @@ To change a single device's name in the field: edit that file directly (over USB
 
 To change the default that ships in every new build: edit `sangala/Settings.toml` in the repo. Both shipped packages (`-install.tar.gz` and `-update.tar.gz`) bundle the file from the repo, so the new value takes effect on the next tagged release.
 
-Long-term: the PowerShell installer should prompt for a name on fresh installs and patch the field before copying. Not yet implemented.
+The PowerShell installers (CLI and GUI, in `install-sangala.zip`) prompt for the reader's name on a fresh install and patch the field automatically. On a standalone update they read the existing on-device value and preserve it, so per-device names survive updates without re-editing.
 
 ## Package Structure
 
@@ -66,7 +66,10 @@ Two packages produced per release; a fresh install runs both in sequence:
 
 Fresh install flow: copy install → eject → device updates and reboots → reconnect → copy update → eject. Subsequent updates just reapply the update package.
 
-**Installer script**: `sangala/installer/install-sangala.ps1` — auto-detects Kobo by volume name "KOBOeReader", determines install vs update, cleans up old non-dot library folders, copies files.
+**Installer scripts** (both shipped inside `install-sangala.zip`):
+- `sangala/installer/install-sangala-gui.ps1` — WinForms wizard. Connect → detect → (fresh install: prompt for reader's name) → progress bar → eject → wait-for-reconnect → progress bar → done. Background runspace handles the long file copies; a 500 ms timer polls progress and reconnect state. Errors get a Retry/Close pair.
+- `sangala/installer/install-sangala.ps1` — Console flow with the same logic and the same name prompt on fresh install.
+- Both auto-detect the Kobo by `KOBOeReader` volume name, determine install vs. update by checking for `\.adds\plato\plato`, clean up old non-dot library folders, log to `install-sangala.log` next to the script, and patch `welcome-name` in the package's `Settings.toml` so the home screen reads "Welcome, {name}!". On a standalone update they read the existing on-device name and patch the update package with it, so updates don't revert the placeholder.
 
 ## Branch
 
