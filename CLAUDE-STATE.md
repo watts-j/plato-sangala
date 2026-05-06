@@ -18,9 +18,9 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.32-sangala** — Backgrounds dictionary conversion in `plato.sh`; `plato-autostart.sh` now waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. Should both fix factory-reset hang and shrink subsequent-boot wait from 13s → ~6s. Pre-release until device-tested.
-- **v2.30-sangala** — **Latest stable build.** Verified on factory-reset Clara BW: install package extracts cleanly, auto-reboot fires, Plato launches with no dot-loop overlay (`pkill -f on-animator` in `plato-autostart.sh` does it). Future tags ship as pre-release by default and must be manually promoted on the GitHub Releases page after a device test.
-- **v2.31-sangala** — Pre-release. EPUBs moved out of install package (now ~68MB) into update only (~109MB). Hangs on factory-reset because `sleep 12` is too short while Nickel builds `KoboReader.sqlite`; Plato launch additionally delayed by synchronous dictionary conversion in `plato.sh`.
+- **v2.32-sangala** — **Latest stable build.** Backgrounded dictionary conversion in `plato.sh` (Plato launches without waiting for the multi-minute Wiktionary StarDict→dictd conversion). `plato-autostart.sh` waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. First-install boot to Plato visible: ~90s on Clara BW (autostart ~11s; remaining ~80s is plato.sh + Plato startup, slowed by background conversion's disk I/O contention). Subsequent boots faster.
+- **v2.31-sangala** — Pre-release; superseded by v2.32. Hangs on factory-reset because `sleep 12` is too short while Nickel builds `KoboReader.sqlite`; Plato launch additionally delayed by synchronous dictionary conversion in `plato.sh`.
+- **v2.30-sangala** — Previous stable. Verified on factory-reset Clara BW; install package extracts cleanly, auto-reboot fires, Plato launches with no dot-loop overlay.
 - **v2.28-sangala** — Failed KFMon experiment. Two launchers raced; every boot hung on dots. Do not use.
 - **v2.27-sangala** — Pre-fix layout (`sleep 9`, no on-animator kill). First boot hangs on factory-reset.
 - **v2.19-sangala** — Last build using KFMon + NickelMenu. Never verified on Clara BW.
@@ -38,7 +38,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.32-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes)
+**v2.33-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes)
 
 ## Package Structure
 
@@ -213,6 +213,8 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - **Pre-convert dictionary in CI (Option B).** `plato.sh` currently forks `convert-dictionary.sh` into the background to avoid blocking Plato startup; first-launch dictionary lookups fail until conversion completes (multiple minutes on Clara BW). Better path: convert StarDict → dictd format in CI, ship only the `.dict.dz` + `.index`, no on-device conversion ever. The previous attempt (commit `306f5a6`, reverted in `4ec30af`) shipped a 79MB `.index` and was reverted with the note "76MB index too large for device RAM" — but the artifacts at `sangala/dictionaries-converted/` look malformed (multiple entries with empty headwords), suggesting the Python `convert-stardict.py` had a bug, not that Plato truly couldn't handle the index. Plato's `crates/core/src/dictionary/indexing.rs` lazy-loads metadata at startup and only parses all entries on first lookup; peak RAM ≈ 80MB (entries) + a normalize copy. Likely fits in Clara BW's 256MB but not verified. Doing this right needs (1) a working non-ARM converter (e.g., `pyglossary`, since Plato's `sdunpack` is ARM-only), and (2) a Clara BW memory test with the resulting index.
 
 - **Make on-device dictionary conversion crash-safe (Option G).** Background dictionary conversion in `plato.sh` is interruptible: if the device is rebooted, USB-connected, or low-batteries during the multi-minute conversion (steps 4–5 of `convert-dictionary.sh` are the danger zone), the dictionary ends up in a broken state until an update package is re-applied to restore pristine StarDict files. Fix: wrap `convert-dictionary.sh` (or modify it in place) to (1) tar the StarDict source files into `.dict-backup.tar` (atomic via `.tmp` + `mv`) before any in-place modification, (2) on next run, if backup exists, wipe partial state and restore from backup before retrying, (3) delete backup only after a fully successful conversion. ~15 lines of shell, low risk (build doesn't execute the script, only ships it; failure mode is "dictionary doesn't work" not "device bricked"). Recovery if the wrapper itself has a bug: re-apply update package. Skip if Option B lands first since it removes on-device conversion entirely.
+
+- **Reduce first-install boot time by deprioritizing background conversion.** v2.32 backgrounds `convert-dictionary.sh` so Plato can launch without waiting on it, but the conversion's disk I/O contends with Plato's startup reads on Clara BW's slow flash, stretching the post-`exec plato.sh` window to ~80s. Wrap the backgrounded call with `nice -n 19` and an initial `sleep 30` so Plato has uncontended I/O during its startup. Expected savings: 30–60s on first boot. Side effect: the conversion itself takes longer. Skip if Option B lands.
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
 - **Boot delay**: Currently 9s. Can be reduced further if testing shows stability.
