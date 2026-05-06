@@ -6,6 +6,7 @@ mod directory;
 mod shelf;
 mod book;
 mod bottom_bar;
+mod welcome_screen;
 
 use std::fs;
 use std::mem;

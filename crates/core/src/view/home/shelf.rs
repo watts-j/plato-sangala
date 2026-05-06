@@ -3,13 +3,12 @@ use std::sync::Mutex;
 use std::path::PathBuf;
 use lazy_static::lazy_static;
 use super::book::Book;
+use super::welcome_screen::WelcomeScreen;
 use crate::device::CURRENT_DEVICE;
-use crate::view::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue, RenderData, Align};
+use crate::view::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue, RenderData};
 use crate::view::{BIG_BAR_HEIGHT, THICKNESS_MEDIUM};
 use crate::view::filler::Filler;
-use crate::view::image::Image;
-use crate::view::label::Label;
-use crate::document::{open, Location};
+use crate::document::open;
 use crate::framebuffer::{Framebuffer, UpdateMode};
 use crate::settings::{FirstColumn, SecondColumn};
 use crate::geom::{Rectangle, Dir, CycleDir, halves};
@@ -175,25 +174,14 @@ impl Shelf {
         let label_rect = rect![self.rect.min.x, image_bottom,
                                self.rect.max.x, self.rect.max.y];
 
-        let mut doc = match open(&image_path) {
-            Some(d) => d,
-            None => return false,
-        };
-        let (src_w, src_h) = match doc.dims(0) {
-            Some(d) => d,
-            None => return false,
-        };
-        let scale = (image_rect.width() as f32 / src_w)
-            .min(image_rect.height() as f32 / src_h);
-        let pixmap = match doc.pixmap(Location::Exact(0), scale, CURRENT_DEVICE.color_samples()) {
-            Some((p, _)) => p,
-            None => return false,
-        };
-
-        self.children.push(Box::new(Image::new(image_rect, pixmap)) as Box<dyn View>);
-        let label = Label::new(label_rect, format!("Welcome, {}!", name), Align::Center);
-        self.children.push(Box::new(label) as Box<dyn View>);
-        true
+        match WelcomeScreen::try_new(self.rect, image_rect, label_rect,
+                                      &image_path, format!("Welcome, {}!", name)) {
+            Some(view) => {
+                self.children.push(Box::new(view) as Box<dyn View>);
+                true
+            },
+            None => false,
+        }
     }
 }
 
