@@ -217,8 +217,7 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - **Reduce first-install boot time by deprioritizing background conversion.** v2.32 backgrounds `convert-dictionary.sh` so Plato can launch without waiting on it, but the conversion's disk I/O contends with Plato's startup reads on Clara BW's slow flash, stretching the post-`exec plato.sh` window to ~80s. Wrap the backgrounded call with `nice -n 19` and an initial `sleep 30` so Plato has uncontended I/O during its startup. Expected savings: 30–60s on first boot. Side effect: the conversion itself takes longer. Skip if Option B lands.
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
-- **Boot delay**: Currently 9s. Can be reduced further if testing shows stability.
-- **Installer script paths**: Currently hardcoded to v2.24 paths. Needs parameterization for new versions.
+- **Installer script paths**: `sangala/installer/install-sangala.ps1` is hardcoded to `plato-sangala-v2.24-sangala-install` / `-update`. Update to current tag or parameterize (e.g., glob for `plato-sangala-v*-sangala-install` to pick whatever the user extracted).
 - **Installer script download**: .ps1 file uploads to GitHub release successfully but may not be visible in the UI. Consider zipping it.
 - **Stale library folders**: When updating from pre-v2.25 builds, old non-dot library folders (STEM/, Humanities/, etc.) must be deleted. Installer script handles this, but manual installs do not.
 
