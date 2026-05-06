@@ -169,7 +169,8 @@ impl Home {
         let index_lower = current_page * max_lines;
         let index_upper = (index_lower + max_lines).min(visible_books.len());
 
-        shelf.update(&visible_books[index_lower..index_upper], hub, &mut RenderQueue::new(), context);
+        shelf.update(&visible_books[index_lower..index_upper], true,
+                     hub, &mut RenderQueue::new(), context);
 
         children.push(Box::new(shelf) as Box<dyn View>);
 
@@ -399,7 +400,9 @@ impl Home {
         let index_lower = self.current_page * max_lines;
         let index_upper = (index_lower + max_lines).min(self.visible_books.len());
 
-        shelf.update(&self.visible_books[index_lower..index_upper], hub, rq, context);
+        let at_library_root = self.current_directory == context.library.home;
+        shelf.update(&self.visible_books[index_lower..index_upper], at_library_root,
+                     hub, rq, context);
     }
 
     fn update_top_bar(&mut self, search_visible: bool, rq: &mut RenderQueue, context: &Context) {

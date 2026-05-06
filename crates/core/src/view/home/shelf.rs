@@ -63,7 +63,8 @@ impl Shelf {
         self.thumbnail_previews = thumbnail_previews;
     }
 
-    pub fn update(&mut self, metadata: &[Info], hub: &Hub, rq: &mut RenderQueue, context: &Context) {
+    pub fn update(&mut self, metadata: &[Info], at_library_root: bool,
+                  hub: &Hub, rq: &mut RenderQueue, context: &Context) {
         self.children.clear();
         let dpi = CURRENT_DEVICE.dpi;
         let big_height = scale_by_dpi(BIG_BAR_HEIGHT, dpi) as i32;
@@ -126,7 +127,8 @@ impl Shelf {
         }
 
         if metadata.len() < max_lines {
-            let pushed_welcome = metadata.is_empty() && self.try_push_welcome_screen(context);
+            let pushed_welcome = metadata.is_empty() && at_library_root
+                && self.try_push_welcome_screen(context);
             if !pushed_welcome {
                 let y_start = y_pos + if metadata.is_empty() { 0 } else { thickness };
                 let filler = Filler::new(rect![self.rect.min.x, y_start,
@@ -162,14 +164,10 @@ impl Shelf {
             return false;
         }
 
-        // ~2.5mm of breathing room above the image. Image keeps its 2/3-of-shelf
-        // height (so a source PNG sized to the previous rect still fits without
-        // re-introducing horizontal banding); the label gets whatever's left.
-        let top_padding = scale_by_dpi(30.0, CURRENT_DEVICE.dpi) as i32;
+        // Image gets the top 2/3 of the shelf, label gets the remaining 1/3.
         let image_height = (self.rect.height() as i32 * 2) / 3;
-        let image_top = self.rect.min.y + top_padding;
-        let image_bottom = image_top + image_height;
-        let image_rect = rect![self.rect.min.x, image_top,
+        let image_bottom = self.rect.min.y + image_height;
+        let image_rect = rect![self.rect.min.x, self.rect.min.y,
                                self.rect.max.x, image_bottom];
         let label_rect = rect![self.rect.min.x, image_bottom,
                                self.rect.max.x, self.rect.max.y];
