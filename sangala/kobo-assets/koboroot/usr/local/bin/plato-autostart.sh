@@ -13,13 +13,20 @@ until pidof nickel > /dev/null 2>&1; do
 done
 log "nickel up after ${i}s wait"
 
-# Allow Nickel to fully initialize before handing off to Plato
-sleep 12
+# Wait for KoboReader.sqlite to exist (covers factory-reset DB build).
+# On subsequent boots the file is already there, so this is ~0s.
+DB="/mnt/onboard/.kobo/KoboReader.sqlite"
+j=0
+while [ ! -e "${DB}" ] && [ "$j" -lt 60 ]; do
+    sleep 1
+    j=$((j + 1))
+done
+log "KoboReader.sqlite present after ${j}s additional wait"
 
-# Kill the boot-progress loop in on-animator.sh so it stops repainting
-# the loading dots over Plato's framebuffer every 250ms.
+# Brief grace so any final init writes can flush
+sleep 5
+
 pkill -f on-animator > /dev/null 2>&1
 log "killed on-animator; launching plato.sh"
 
-# Launch Plato
 exec /mnt/onboard/.adds/plato/plato.sh

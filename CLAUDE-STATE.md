@@ -18,7 +18,9 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
+- **v2.32-sangala** — Backgrounds dictionary conversion in `plato.sh`; `plato-autostart.sh` now waits for `pidof nickel` + `KoboReader.sqlite` existence (60s cap) + 5s grace. Should both fix factory-reset hang and shrink subsequent-boot wait from 13s → ~6s. Pre-release until device-tested.
 - **v2.30-sangala** — **Latest stable build.** Verified on factory-reset Clara BW: install package extracts cleanly, auto-reboot fires, Plato launches with no dot-loop overlay (`pkill -f on-animator` in `plato-autostart.sh` does it). Future tags ship as pre-release by default and must be manually promoted on the GitHub Releases page after a device test.
+- **v2.31-sangala** — Pre-release. EPUBs moved out of install package (now ~68MB) into update only (~109MB). Hangs on factory-reset because `sleep 12` is too short while Nickel builds `KoboReader.sqlite`; Plato launch additionally delayed by synchronous dictionary conversion in `plato.sh`.
 - **v2.28-sangala** — Failed KFMon experiment. Two launchers raced; every boot hung on dots. Do not use.
 - **v2.27-sangala** — Pre-fix layout (`sleep 9`, no on-animator kill). First boot hangs on factory-reset.
 - **v2.19-sangala** — Last build using KFMon + NickelMenu. Never verified on Clara BW.
@@ -36,7 +38,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.31-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes)
+**v2.32-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes)
 
 ## Package Structure
 
@@ -64,7 +66,8 @@ Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI
 
 ## Architecture
 
-- Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz). Waits for `pidof nickel` then sleeps 12s, then execs `plato.sh`.
+- Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz). Waits for `pidof nickel`, then for `/mnt/onboard/.kobo/KoboReader.sqlite` to exist (60s cap, near-zero on subsequent boots), plus a 5s grace period; then `pkill -f on-animator` and `exec /mnt/onboard/.adds/plato/plato.sh`.
+- Dictionary conversion (`convert-dictionary.sh`) is forked into the background by `plato.sh` so it doesn't block Plato startup. First-launch dictionary lookups may fail until conversion completes; second launch is fine.
 - No KFMon, no NickelMenu.
 - KoboRoot.tgz is the committed minimal `sangala/kobo-assets/KoboRoot.tgz` (~1KB): only `etc/init.d/on-animator.sh` (slim, no KFMon hook) and `usr/local/bin/plato-autostart.sh`.
 - Dictionary: Wiktionary English (StarDict format), converted on-device on first use (~1-2 min)
@@ -203,7 +206,11 @@ Menu (top bar — always shows "Menu" regardless of active library)
 
 ## Known Issues / Pending
 
-- **Fresh install hang**: addressed in v2.29 by bumping autostart sleep from 9s to 12s. Validate with a factory-reset Clara BW + v2.29 install package. If 12s is still too short on factory-reset, bump further.
+- **Fresh install hang**: addressed in v2.32 by waiting for `KoboReader.sqlite` to exist before killing Nickel (covers factory-reset DB build) and reducing the post-DB grace to 5s (faster on subsequent boots). Validate with a factory-reset Clara BW.
+
+## Long-term TODO
+
+- **Pre-convert dictionary in CI (Option B).** `plato.sh` currently forks `convert-dictionary.sh` into the background to avoid blocking Plato startup; first-launch dictionary lookups fail until conversion completes (multiple minutes on Clara BW). Better path: run `convert-dictionary.sh` once in CI, ship only the dictd-format `.dict.dz` + `.index`, no on-device conversion ever. A previous CLAUDE-STATE note claimed pre-conversion produced "a 76MB index too large for device RAM" — but `dictfmt`'s `.index` is a flat per-word offset table, not loaded entirely into RAM at runtime, so it may actually be fine. Investigate before assuming the old note still applies.
 - **Home landing page**: Not yet implemented. Previous HomeImage overlay approach crashed. Next approach: modify Shelf renderer to show image when books list is empty. `selected-library = 5` (Menu, empty library) works as of v2.16/v2.20.
 - **`home-image` setting**: Still in Settings.toml and settings struct but not used in Home view code (disabled after crashes). Path: `/mnt/onboard/.adds/plato/resources/home.png`
 - **Boot delay**: Currently 9s. Can be reduced further if testing shows stability.
