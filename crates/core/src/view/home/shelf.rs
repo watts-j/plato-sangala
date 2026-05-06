@@ -141,11 +141,13 @@ impl Shelf {
         rq.add(RenderData::new(self.id, self.rect, UpdateMode::Partial));
     }
 
-    // When the library is empty and both `home-image` and `welcome-name` are
-    // configured, render a landing screen: image in the top 2/3, "Welcome,
-    // {name}!" centered in the bottom 1/3. Returns false (so the caller falls
-    // back to a plain white filler) if either setting is missing or the image
-    // can't be opened.
+    // When the library is intrinsically empty (no books and no subdirs
+    // anywhere) and both `home-image` and `welcome-name` are configured,
+    // render a landing screen: image in the top 2/3, "Welcome, {name}!"
+    // centered in the bottom 1/3. Returns false (so the caller falls back to
+    // a plain white filler) if either setting is missing, the image can't be
+    // opened, or the library has any content (so a search filter that yields
+    // zero matches in a populated library won't trigger the welcome screen).
     fn try_push_welcome_screen(&mut self, context: &Context) -> bool {
         let image_path = match context.settings.home.home_image.as_ref() {
             Some(p) if !p.is_empty() => PathBuf::from(p),
@@ -155,6 +157,11 @@ impl Shelf {
             Some(n) if !n.is_empty() => n.clone(),
             _ => return false,
         };
+
+        let (root_books, root_dirs) = context.library.list(&context.library.home, None, false);
+        if !root_books.is_empty() || !root_dirs.is_empty() {
+            return false;
+        }
 
         let split_y = self.rect.min.y + (self.rect.height() as i32 * 2) / 3;
         let image_rect = rect![self.rect.min.x, self.rect.min.y,
