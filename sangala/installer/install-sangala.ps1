@@ -139,6 +139,16 @@ function Set-PackageWelcomeName($packagePath, $name) {
     Set-Content -Path $settingsFile -Value $patched -NoNewline
 }
 
+function Exit-WithMessage($message) {
+    Write-Log 'ERROR' $message
+    Write-Host ""
+    Write-Host "ERROR: $message" -ForegroundColor Red
+    Write-Host "Details written to: $LogPath" -ForegroundColor Red
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
 # --- Main ---
 
 Write-Log 'INFO' '--- CLI installer started ---'
@@ -160,18 +170,10 @@ try {
 
     # Validate package paths
     if (-not $InstallPath -or -not (Test-Path $InstallPath)) {
-        Write-Log 'ERROR' 'Install package not found'
-        Write-Host "ERROR: Install package not found." -ForegroundColor Red
-        Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-install' next to this script," -ForegroundColor Red
-        Write-Host "  or pass -InstallPath <path> explicitly." -ForegroundColor Red
-        exit 1
+        Exit-WithMessage "Install package not found. Expected a folder matching 'plato-sangala-v*-sangala-install' next to this script, or pass -InstallPath <path> explicitly."
     }
     if (-not $UpdatePath -or -not (Test-Path $UpdatePath)) {
-        Write-Log 'ERROR' 'Update package not found'
-        Write-Host "ERROR: Update package not found." -ForegroundColor Red
-        Write-Host "  Expected a folder matching 'plato-sangala-v*-sangala-update' next to this script," -ForegroundColor Red
-        Write-Host "  or pass -UpdatePath <path> explicitly." -ForegroundColor Red
-        exit 1
+        Exit-WithMessage "Update package not found. Expected a folder matching 'plato-sangala-v*-sangala-update' next to this script, or pass -UpdatePath <path> explicitly."
     }
 
     Write-Host "Install package: $(Split-Path $InstallPath -Leaf)" -ForegroundColor DarkGray
@@ -183,9 +185,7 @@ try {
     $koboDrive = Find-Kobo
 
     if ($null -eq $koboDrive) {
-        Write-Log 'ERROR' 'No Kobo device found'
-        Write-Host "No Kobo device found. Please connect the device via USB and try again." -ForegroundColor Red
-        exit 1
+        Exit-WithMessage "No Kobo device found. Please connect the device via USB and try again."
     }
 
     Write-Host "Kobo detected at $koboDrive" -ForegroundColor Green
