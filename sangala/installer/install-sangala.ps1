@@ -249,9 +249,8 @@ function Get-DeviceWelcomeName($driveLetter) {
         return $null
     }
     $content = Get-Content -Raw -Path $settingsFile
-    $pattern = @'
-welcome-name\s*=\s*"([^"]*)"
-'@
+    $dq = [char]34
+    $pattern = "welcome-name\s*=\s*$dq([^$dq]*)$dq"
     if ($content -match $pattern) {
         return $Matches[1]
     }
@@ -264,11 +263,10 @@ function Set-PackageWelcomeName($packagePath, $name) {
         throw "Settings.toml not found in package: $settingsFile"
     }
     $content = Get-Content -Raw -Path $settingsFile
-    $escaped = $name -replace '"', '\"'
-    $pattern = @'
-welcome-name\s*=\s*"[^"]*"
-'@
-    $replacement = 'welcome-name = "{0}"' -f $escaped
+    $dq = [char]34
+    $escaped = $name.Replace([string]$dq, '\' + $dq)
+    $pattern = "welcome-name\s*=\s*$dq[^$dq]*$dq"
+    $replacement = "welcome-name = $dq" + $escaped + $dq
     $patched = $content -replace $pattern, $replacement
     Set-Content -Path $settingsFile -Value $patched -NoNewline
 }
