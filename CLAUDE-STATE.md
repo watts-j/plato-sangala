@@ -44,7 +44,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.39-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes).
+**v2.42-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes).
 
 ## Welcome Name
 
