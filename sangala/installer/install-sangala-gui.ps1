@@ -59,20 +59,28 @@ function Eject-Drive($driveLetter) {
     try {
         $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
         if ($vol) {
-            $vol.Dismount($false, $false) | Out-Null
+            $result = $vol.Dismount($false, $false)
+            if ($result.ReturnValue -eq 0) {
+                Write-Log 'INFO' "Dismounted $driveLetter via Win32_Volume"
+                return
+            }
+            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter; falling back to Shell eject"
         }
         $shell = New-Object -ComObject Shell.Application
         $folder = $shell.Namespace(17)
         $item = $folder.ParseName($driveLetter + "\")
         if ($item) {
             $item.InvokeVerb("Eject")
+            Write-Log 'INFO' "Ejected $driveLetter via Shell.Application"
         }
-        return $true
     }
     catch {
-        Write-Log 'WARN' "Eject failed: $($_.Exception.Message)"
-        return $false
+        Write-Log 'WARN' "Eject failed for $driveLetter`: $($_.Exception.Message)"
     }
+}
+
+function Test-DriveGone($driveLetter) {
+    -not (Test-Path "$driveLetter\")
 }
 
 function Remove-OldLibraries($destDrive) {
@@ -208,7 +216,7 @@ $nameLabel.Location = New-Object System.Drawing.Point(20, 155)
 $nameLabel.Size = New-Object System.Drawing.Size(470, 22)
 $nameLabel.TextAlign = 'MiddleCenter'
 $nameLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$nameLabel.Text = "Reader's name (shown on the home screen):"
+$nameLabel.Text = "Enter the user's name:"
 $nameLabel.Visible = $false
 $form.Controls.Add($nameLabel)
 
@@ -369,7 +377,7 @@ function Show-DetectedUpdate {
 
 function Show-NamePrompt {
     Hide-AllControls
-    $script:statusLabel.Text = "Enter the reader's name. It will appear on the home screen as 'Welcome, {name}!'."
+    $script:statusLabel.Text = "The name will appear on the device's home screen as `"Welcome, {name}!`"."
     $script:nameLabel.Visible = $true
     $script:nameInput.Visible = $true
     $script:nameInput.Text = ''
@@ -430,7 +438,7 @@ function Start-UpdateOnly {
         }
     }
     Remove-OldLibraries $script:S.Drive
-    Start-UpdateCopy { Show-Done }
+    Start-UpdateCopy { Start-Disconnect { Show-Done } }
 }
 
 function Start-UpdateCopy($onSuccess) {
@@ -457,7 +465,8 @@ function On-CopyTick($onSuccess) {
     if ($st.Total -gt 0) {
         $script:progressBar.Maximum = [int]$st.Total
         $script:progressBar.Value = [Math]::Min([int]$st.Done, [int]$st.Total)
-        $script:progressLabel.Text = "Copied $($st.Done) of $($st.Total) files..."
+        $pct = [int](100 * $st.Done / $st.Total)
+        $script:progressLabel.Text = "Copied $($st.Done) of $($st.Total) files ($pct%)..."
     }
 
     if ($st.Status -eq 'Done') {
@@ -477,28 +486,59 @@ function On-CopyTick($onSuccess) {
             if ($script:S.IsFreshInstall -and $script:S.Drive -and -not (Test-Path "$($script:S.Drive)\.adds\plato\plato")) {
                 Start-FreshInstallStep1
             } else {
-                Start-UpdateCopy { Show-Done }
+                Start-UpdateCopy { Start-Disconnect { Show-Done } }
             }
         }
     }
 }
 
 function After-InstallStep1 {
+    Start-Disconnect { Show-WaitingForReconnect }
+}
+
+function Start-Disconnect($onSuccess) {
     Hide-AllControls
-    $script:statusLabel.Text = "Ejecting device. The device will now reboot to process the system files."
+    $script:statusLabel.Text = "Ejecting device..."
+    $script:S.DisconnectStart = Get-Date
+    $script:S.DisconnectOnSuccess = $onSuccess
     $script:form.Refresh()
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 100
 
-    if (-not (Eject-Drive $script:S.Drive)) {
-        Write-Log 'WARN' "Eject failed for $($script:S.Drive)"
+    Eject-Drive $script:S.Drive
+
+    $script:timer.Stop()
+    $script:timer.Remove_Tick({})
+    $script:timer.Add_Tick({ On-DisconnectTick })
+    $script:timer.Start()
+}
+
+function On-DisconnectTick {
+    if (Test-DriveGone $script:S.Drive) {
+        $script:timer.Stop()
+        Write-Log 'INFO' "Device disconnected at $($script:S.Drive)"
+        & $script:S.DisconnectOnSuccess
+        return
     }
+    $elapsed = (Get-Date) - $script:S.DisconnectStart
+    if ($elapsed.TotalSeconds -ge 60) {
+        $script:timer.Stop()
+        Write-Log 'WARN' "Device did not disconnect within 60 seconds; prompting user"
+        Show-DisconnectError
+    }
+}
 
-    Show-WaitingForReconnect
+function Show-DisconnectError {
+    Hide-AllControls
+    $script:statusLabel.Text = "The device didn't disconnect automatically.`n`nIf Windows shows a 'drive in use' dialog, click Cancel and use 'Safely Remove Hardware' (system tray) to eject the Kobo. Then click Continue."
+    Set-PrimaryButton "Continue" {
+        Start-Disconnect $script:S.DisconnectOnSuccess
+    }
+    Set-SecondaryButton "Cancel" { $script:form.Close() }
 }
 
 function Show-WaitingForReconnect {
     Hide-AllControls
-    $script:statusLabel.Text = "Waiting for device to reconnect to continue the installation process.`nClick Update on the next screen to copy library content to the device."
+    $script:statusLabel.Text = "Waiting for the device to reconnect.`n`nAfter the device finished updating, you may need to tap 'Connect USB' in the top-right menu."
     $script:S.ReconnectStart = Get-Date
     Set-SecondaryButton "Cancel" { $script:form.Close() }
 
@@ -540,13 +580,6 @@ function Show-CopyError($message, $retryAction) {
 
 function Show-Done {
     Hide-AllControls
-    if (-not (Eject-Drive $script:S.Drive)) {
-        Write-Log 'WARN' "Eject failed for $($script:S.Drive)"
-        $script:statusLabel.Text = "Could not eject the device automatically.`nPlease use Windows' Safely Remove Hardware before unplugging."
-        Set-CenterButton "OK" { $script:form.Close() }
-        return
-    }
-
     if ($script:S.IsFreshInstall) {
         Write-Log 'INFO' 'Fresh install complete'
         $script:statusLabel.Text = "Installation complete!`n`nYou may now disconnect your device.`nDo not power it off for 15 minutes — updates are still processing."
