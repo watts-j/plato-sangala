@@ -126,19 +126,27 @@ function Flush-Drive($driveLetter) {
 }
 
 function Eject-Drive($driveLetter) {
-    # Cooperative dismount only. We deliberately do NOT fall through to
-    # Shell.Application.InvokeVerb("Eject"), because that path shows
-    # Windows' "drive in use" dialog whose Continue button forcibly
-    # dismounts and corrupts in-flight writes (factory-reset hazard).
+    # Cooperative dismount first; if that fails, force-dismount. Force is safe
+    # here because Flush-Drive already ran (writes are durable on disk), so
+    # the only thing force closes is stale read handles. We deliberately do
+    # NOT use Shell.Application.InvokeVerb("Eject"), because that path shows
+    # Windows' "drive in use" dialog whose Continue button forcibly dismounts
+    # and corrupts in-flight writes (factory-reset hazard).
     try {
         $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
         if ($vol) {
             $result = $vol.Dismount($false, $false)
             if ($result.ReturnValue -eq 0) {
-                Write-Log 'INFO' "Dismounted $driveLetter via Win32_Volume"
+                Write-Log 'INFO' "Dismounted $driveLetter via Win32_Volume (cooperative)"
                 return
             }
-            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter"
+            Write-Log 'WARN' "Cooperative dismount returned $($result.ReturnValue) for $driveLetter; trying force"
+            $result = $vol.Dismount($true, $false)
+            if ($result.ReturnValue -eq 0) {
+                Write-Log 'INFO' "Force-dismounted $driveLetter (data already flushed)"
+                return
+            }
+            Write-Log 'WARN' "Force dismount returned $($result.ReturnValue) for $driveLetter"
         }
     }
     catch {
