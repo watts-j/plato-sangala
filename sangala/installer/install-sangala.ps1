@@ -235,7 +235,8 @@ function Wait-ForKobo {
         $elapsed += 3
         $drive = Find-Kobo
         if ($elapsed % 30 -eq 0 -and $elapsed -gt 0) {
-            Write-Host "  Still waiting... ($elapsed seconds). Make sure USB is plugged in and tap 'Connect USB' on the device." -ForegroundColor DarkYellow
+            $waitMsg = '  Still waiting... ({0} seconds). Make sure USB is plugged in and tap ''Connect USB'' on the device.' -f $elapsed
+            Write-Host $waitMsg -ForegroundColor DarkYellow
         }
     }
     Write-Host "Kobo detected at $drive" -ForegroundColor Green
@@ -296,10 +297,10 @@ try {
 
     # Validate package paths
     if (-not $InstallPath -or -not (Test-Path $InstallPath)) {
-        Exit-WithMessage "Install package not found. Expected a folder matching 'plato-sangala-v*-sangala-install' next to this script, or pass -InstallPath <path> explicitly."
+        Exit-WithMessage 'Install package not found. Expected a folder matching ''plato-sangala-v*-sangala-install'' next to this script, or pass -InstallPath <path> explicitly.'
     }
     if (-not $UpdatePath -or -not (Test-Path $UpdatePath)) {
-        Exit-WithMessage "Update package not found. Expected a folder matching 'plato-sangala-v*-sangala-update' next to this script, or pass -UpdatePath <path> explicitly."
+        Exit-WithMessage 'Update package not found. Expected a folder matching ''plato-sangala-v*-sangala-update'' next to this script, or pass -UpdatePath <path> explicitly.'
     }
 
     Write-Host "Install package: $(Split-Path $InstallPath -Leaf)" -ForegroundColor DarkGray
