@@ -158,7 +158,10 @@ function Get-DeviceWelcomeName($driveLetter) {
         return $null
     }
     $content = Get-Content -Raw -Path $settingsFile
-    if ($content -match 'welcome-name\s*=\s*"([^"]*)"') {
+    $pattern = @'
+welcome-name\s*=\s*"([^"]*)"
+'@
+    if ($content -match $pattern) {
         return $Matches[1]
     }
     return $null
@@ -171,7 +174,11 @@ function Set-PackageWelcomeName($packagePath, $name) {
     }
     $content = Get-Content -Raw -Path $settingsFile
     $escaped = $name -replace '"', '\"'
-    $patched = $content -replace 'welcome-name\s*=\s*"[^"]*"', ('welcome-name = "{0}"' -f $escaped)
+    $pattern = @'
+welcome-name\s*=\s*"[^"]*"
+'@
+    $replacement = 'welcome-name = "{0}"' -f $escaped
+    $patched = $content -replace $pattern, $replacement
     Set-Content -Path $settingsFile -Value $patched -NoNewline
 }
 
