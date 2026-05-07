@@ -48,7 +48,7 @@ Avoid both. Specifically:
 
 **v2.29 fix.** Stay on v2.27's minimal KoboRoot.tgz layout; bump `sleep 9` to `sleep 12` in plato-autostart.sh.
 
-**Recovery from v2.28.** Factory reset (hold LIGHT during power-on for ~10s) is the cleanest path. Without a reset, installing v2.29 will overwrite `on-animator.sh` with the slim no-KFMon version, leaving the v2.3-derived KFMon binaries inert in `/usr/local/kfmon/`.
+**Recovery from v2.28.** Factory reset is the cleanest path. Without a reset, installing v2.29 will overwrite `on-animator.sh` with the slim no-KFMon version, leaving the v2.3-derived KFMon binaries inert in `/usr/local/kfmon/`. **Note on factory-reset gesture:** the Clara BW has only a power button (no LIGHT button, no pinhole) — earlier sessions of this file claimed "hold LIGHT during power-on for ~10s", which was wrong. Do not repeat that. The user knows the correct procedure for their device; if you need it, ask rather than guess.
 
 ## Next Tag Number
 
@@ -106,7 +106,7 @@ This shows every parse error in one pass instead of fixing one and rediscovering
 
 ## Device
 
-Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI
+Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI. **Hardware buttons: power only.** No LIGHT button, no pinhole reset. Do not invent a button-combo factory-reset gesture from memory of other Kobos — earlier sessions repeatedly wrote "hold LIGHT during power-on" and were corrected. If you need the reset gesture for a recovery instruction, ask the user.
 
 ## Architecture
 
