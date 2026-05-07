@@ -173,7 +173,7 @@ impl Shelf {
                                self.rect.max.x, self.rect.max.y];
 
         match WelcomeScreen::try_new(self.rect, image_rect, label_rect,
-                                      &image_path, format!("Welcome, {}!", name)) {
+                                      &image_path, name.clone()) {
             Some(view) => {
                 self.children.push(Box::new(view) as Box<dyn View>);
                 true
