@@ -599,7 +599,7 @@ function On-DisconnectTick {
 
 function Show-DisconnectError {
     Hide-AllControls
-    $script:statusLabel.Text = "The device didn't disconnect automatically.`n`nWARNING: Do NOT click 'Continue' on any 'drive in use' dialog Windows shows — that can corrupt the install and brick the device.`n`nInstead: click Cancel on Windows' dialog, use 'Safely Remove Hardware' (system tray) to eject the Kobo, wait for the safe-to-remove notification, then click Continue below."
+    $script:statusLabel.Text = "The device didn't disconnect automatically.`n`nWARNING: Do NOT click 'Continue' on any 'drive in use' dialog Windows shows -- that can corrupt the install and brick the device.`n`nInstead: click Cancel on Windows' dialog, use 'Safely Remove Hardware' (system tray) to eject the Kobo, wait for the safe-to-remove notification, then click Continue below."
     Set-PrimaryButton "Continue" {
         Start-Disconnect $script:S.DisconnectOnSuccess
     }
@@ -652,7 +652,7 @@ function Show-Done {
     Hide-AllControls
     if ($script:S.IsFreshInstall) {
         Write-Log 'INFO' 'Fresh install complete'
-        $script:statusLabel.Text = "Installation complete!`n`nYou may now disconnect your device.`nDo not power it off for 15 minutes — updates are still processing."
+        $script:statusLabel.Text = "Installation complete!`n`nYou may now disconnect your device.`nDo not power it off for 15 minutes -- updates are still processing."
     } else {
         Write-Log 'INFO' 'Update complete'
         $script:statusLabel.Text = "Update complete!`n`nYou may now disconnect your device."

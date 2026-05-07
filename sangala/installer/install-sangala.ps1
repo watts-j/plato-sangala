@@ -169,7 +169,7 @@ function Disconnect-Kobo($driveLetter) {
         Write-Host ""
         Write-Host "*** WARNING ***" -ForegroundColor Red
         Write-Host "The device didn't disconnect automatically. DO NOT click 'Continue' on" -ForegroundColor Red
-        Write-Host "any 'drive in use' dialog Windows may show — that can corrupt the install" -ForegroundColor Red
+        Write-Host "any 'drive in use' dialog Windows may show -- that can corrupt the install" -ForegroundColor Red
         Write-Host "and brick the device, requiring a factory reset." -ForegroundColor Red
         Write-Host ""
         Write-Host "Instead:" -ForegroundColor Yellow
