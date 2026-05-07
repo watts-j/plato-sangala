@@ -58,17 +58,57 @@ function Find-Kobo {
 }
 
 function Eject-Drive($driveLetter) {
-    $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
-    if ($vol) {
-        $vol.Dismount($false, $false) | Out-Null
+    try {
+        $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
+        if ($vol) {
+            $result = $vol.Dismount($false, $false)
+            if ($result.ReturnValue -eq 0) {
+                Write-Log 'INFO' "Dismounted $driveLetter via Win32_Volume"
+                return
+            }
+            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter; falling back to Shell eject"
+        }
+        $shell = New-Object -ComObject Shell.Application
+        $folder = $shell.Namespace(17)
+        $item = $folder.ParseName($driveLetter + "\")
+        if ($item) {
+            $item.InvokeVerb("Eject")
+            Write-Log 'INFO' "Ejected $driveLetter via Shell.Application"
+        }
     }
-    # Fallback: use shell COM object
-    $shell = New-Object -ComObject Shell.Application
-    $folder = $shell.Namespace(17)
-    $item = $folder.ParseName($driveLetter + "\")
-    if ($item) {
-        $item.InvokeVerb("Eject")
+    catch {
+        Write-Log 'WARN' "Eject failed for $driveLetter`: $($_.Exception.Message)"
     }
+}
+
+function Wait-ForDriveGone($driveLetter, $timeoutSeconds = 60) {
+    # Polls until the drive letter is no longer mounted, or the timeout elapses.
+    # Returns $true if the drive is gone, $false on timeout.
+    $elapsed = 0
+    while ($elapsed -lt $timeoutSeconds) {
+        if (-not (Test-Path "$driveLetter\")) {
+            return $true
+        }
+        Start-Sleep -Seconds 1
+        $elapsed++
+    }
+    return $false
+}
+
+function Disconnect-Kobo($driveLetter) {
+    Write-Host "Ejecting device..." -ForegroundColor Cyan
+    Eject-Drive $driveLetter
+    if (-not (Wait-ForDriveGone $driveLetter)) {
+        Write-Host ""
+        Write-Host "The device didn't disconnect automatically. If Windows shows a dialog" -ForegroundColor Yellow
+        Write-Host "saying the drive is in use, click Cancel and use 'Safely Remove Hardware'" -ForegroundColor Yellow
+        Write-Host "(system tray icon) to eject the Kobo. Or simply unplug and replug the USB cable." -ForegroundColor Yellow
+        Write-Host ""
+        Read-Host "Press Enter once the device has disconnected"
+        # Brief extra wait in case the user pressed Enter prematurely.
+        Wait-ForDriveGone $driveLetter 10 | Out-Null
+    }
+    Write-Host "Device disconnected." -ForegroundColor Green
 }
 
 function Remove-OldLibraries($destDrive) {
@@ -84,22 +124,34 @@ function Remove-OldLibraries($destDrive) {
 
 function Copy-Package($sourcePath, $destDrive) {
     Write-Host "Copying files from $sourcePath to $destDrive\ ..." -ForegroundColor Cyan
-    $items = Get-ChildItem -Path $sourcePath -Force
-    foreach ($item in $items) {
-        $dest = Join-Path "$destDrive\" $item.Name
-        if ($item.PSIsContainer) {
-            Copy-Item -Path $item.FullName -Destination $dest -Recurse -Force
-        } else {
-            Copy-Item -Path $item.FullName -Destination $dest -Force
-        }
+    $files = @(Get-ChildItem -Path $sourcePath -Recurse -Force -File)
+    $total = $files.Count
+    if ($total -eq 0) {
+        Write-Host "  (no files to copy)" -ForegroundColor DarkGray
+        return
     }
-    Write-Host "Copy complete." -ForegroundColor Green
+    $done = 0
+    $activity = "Copying to $destDrive"
+    foreach ($file in $files) {
+        $relative = $file.FullName.Substring($sourcePath.Length).TrimStart('\','/')
+        $destPath = Join-Path "$destDrive\" $relative
+        $destDir = Split-Path $destPath -Parent
+        if ($destDir -and -not (Test-Path $destDir)) {
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+        }
+        Copy-Item -Path $file.FullName -Destination $destPath -Force
+        $done++
+        $pct = [int](100 * $done / $total)
+        Write-Progress -Activity $activity -Status "$done of $total files ($pct%)" -PercentComplete $pct
+    }
+    Write-Progress -Activity $activity -Completed
+    Write-Host "Copy complete. $total files copied." -ForegroundColor Green
 }
 
 function Wait-ForKobo {
     Write-Host ""
-    Write-Host "Waiting for Kobo to reconnect..." -ForegroundColor Yellow
-    Write-Host "After the device finishes updating, use the burger menu > Connect USB on the device."
+    Write-Host "Waiting for the device to reconnect..." -ForegroundColor Yellow
+    Write-Host "After the device finishes updating, you may need to tap 'Connect USB' in the top-right menu."
     Write-Host ""
 
     $drive = $null
@@ -109,7 +161,7 @@ function Wait-ForKobo {
         $elapsed += 3
         $drive = Find-Kobo
         if ($elapsed % 30 -eq 0 -and $elapsed -gt 0) {
-            Write-Host "  Still waiting... ($elapsed seconds). Make sure USB is plugged in and tap Connect USB on the device." -ForegroundColor DarkYellow
+            Write-Host "  Still waiting... ($elapsed seconds). Make sure USB is plugged in and tap 'Connect USB' on the device." -ForegroundColor DarkYellow
         }
     }
     Write-Host "Kobo detected at $drive" -ForegroundColor Green
@@ -215,8 +267,7 @@ try {
         Copy-Package $UpdatePath $koboDrive
 
         Write-Host ""
-        Write-Host "Ejecting device..." -ForegroundColor Cyan
-        Eject-Drive $koboDrive
+        Disconnect-Kobo $koboDrive
         Write-Host ""
         Write-Host "Update complete. You may disconnect the device." -ForegroundColor Green
         Write-Host "Power off and power on to load the new version." -ForegroundColor Yellow
@@ -232,7 +283,7 @@ try {
         Write-Host ""
         $name = ''
         while ([string]::IsNullOrWhiteSpace($name)) {
-            $name = Read-Host "Enter the reader's name (shown on the home screen)"
+            $name = Read-Host "Enter the user's name"
             $name = $name.Trim()
         }
         Set-PackageWelcomeName $InstallPath $name
@@ -245,8 +296,7 @@ try {
         Copy-Package $InstallPath $koboDrive
 
         Write-Host ""
-        Write-Host "Ejecting device..." -ForegroundColor Cyan
-        Eject-Drive $koboDrive
+        Disconnect-Kobo $koboDrive
 
         Write-Host ""
         Write-Host "The device will now process system files and reboot." -ForegroundColor Yellow
@@ -260,8 +310,7 @@ try {
         Copy-Package $UpdatePath $koboDrive
 
         Write-Host ""
-        Write-Host "Ejecting device..." -ForegroundColor Cyan
-        Eject-Drive $koboDrive
+        Disconnect-Kobo $koboDrive
         Write-Host ""
         Write-Host "Installation complete! The device will launch Plato on next boot." -ForegroundColor Green
         Write-Host "Do not power off the device for 15 minutes; updates are still processing." -ForegroundColor Yellow
