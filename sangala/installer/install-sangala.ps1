@@ -215,7 +215,7 @@ function Copy-Package($sourcePath, $destDrive) {
         Copy-Item -Path $file.FullName -Destination $destPath -Force
         $done++
         $pct = [int](100 * $done / $total)
-        Write-Progress -Activity $activity -Status "$done of $total files ($pct%)" -PercentComplete $pct
+        Write-Progress -Activity $activity -Status "$done of $total files (${pct}%)" -PercentComplete $pct
     }
     Write-Progress -Activity $activity -Completed
     Write-Host "Copy complete. $total files copied." -ForegroundColor Green

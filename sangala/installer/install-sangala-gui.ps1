@@ -525,7 +525,7 @@ function On-CopyTick($onSuccess) {
         $script:progressBar.Maximum = [int]$st.Total
         $script:progressBar.Value = [Math]::Min([int]$st.Done, [int]$st.Total)
         $pct = [int](100 * $st.Done / $st.Total)
-        $script:progressLabel.Text = "Copied $($st.Done) of $($st.Total) files ($pct%)..."
+        $script:progressLabel.Text = "Copied $($st.Done) of $($st.Total) files (${pct}%)..."
     }
 
     if ($st.Status -eq 'Done') {
