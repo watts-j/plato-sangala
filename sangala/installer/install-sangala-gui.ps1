@@ -17,6 +17,41 @@ $ScriptDir = $PSScriptRoot
 $LogPath = Join-Path $ScriptDir 'install-sangala.log'
 $ReconnectTimeoutSeconds = 300
 
+# Win32 P/Invoke: flushes Windows' lazy-write cache for a volume before
+# we try to eject it. Without this, the runspace copy can return while
+# writes are still buffered in RAM; the eject then fails (or worse,
+# succeeds without flushing) and the device sees a partial/corrupted
+# file.
+$flushType = @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class VolumeFlush {
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr CreateFile(
+        string fileName, uint desiredAccess, uint shareMode,
+        IntPtr securityAttributes, uint creationDisposition,
+        uint flagsAndAttributes, IntPtr templateFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FlushFileBuffers(IntPtr hFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    public static bool Flush(string driveLetter) {
+        IntPtr h = CreateFile(@"\\.\" + driveLetter,
+            0x40000000, 0x1 | 0x2, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        if (h == new IntPtr(-1)) { return false; }
+        bool ok = FlushFileBuffers(h);
+        CloseHandle(h);
+        return ok;
+    }
+}
+"@
+if (-not ('VolumeFlush' -as [type])) {
+    Add-Type -TypeDefinition $flushType
+}
+
 # --- Logging --------------------------------------------------------------
 
 function Write-Log {
@@ -55,7 +90,26 @@ function Find-Kobo {
     return $null
 }
 
+function Flush-Drive($driveLetter) {
+    try {
+        if ([VolumeFlush]::Flush($driveLetter)) {
+            Write-Log 'INFO' "Flushed write cache for $driveLetter"
+            return $true
+        }
+        $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        Write-Log 'WARN' "FlushFileBuffers failed for $driveLetter (Win32 error $err)"
+    }
+    catch {
+        Write-Log 'WARN' "Flush-Drive exception for $driveLetter`: $($_.Exception.Message)"
+    }
+    return $false
+}
+
 function Eject-Drive($driveLetter) {
+    # Cooperative dismount only. We deliberately do NOT fall through to
+    # Shell.Application.InvokeVerb("Eject"), because that path shows
+    # Windows' "drive in use" dialog whose Continue button forcibly
+    # dismounts and corrupts in-flight writes (factory-reset hazard).
     try {
         $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
         if ($vol) {
@@ -64,14 +118,7 @@ function Eject-Drive($driveLetter) {
                 Write-Log 'INFO' "Dismounted $driveLetter via Win32_Volume"
                 return
             }
-            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter; falling back to Shell eject"
-        }
-        $shell = New-Object -ComObject Shell.Application
-        $folder = $shell.Namespace(17)
-        $item = $folder.ParseName($driveLetter + "\")
-        if ($item) {
-            $item.InvokeVerb("Eject")
-            Write-Log 'INFO' "Ejected $driveLetter via Shell.Application"
+            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter"
         }
     }
     catch {
@@ -498,11 +545,15 @@ function After-InstallStep1 {
 
 function Start-Disconnect($onSuccess) {
     Hide-AllControls
-    $script:statusLabel.Text = "Ejecting device..."
+    $script:statusLabel.Text = "Flushing writes and ejecting the device..."
     $script:S.DisconnectStart = Get-Date
     $script:S.DisconnectOnSuccess = $onSuccess
     $script:form.Refresh()
-    Start-Sleep -Milliseconds 100
+
+    # Force Windows' lazy-write cache to disk BEFORE eject. Skipping
+    # this risks a partial KoboRoot.tgz write which can brick the device.
+    Flush-Drive $script:S.Drive | Out-Null
+    Start-Sleep -Seconds 1
 
     Eject-Drive $script:S.Drive
 
@@ -529,7 +580,7 @@ function On-DisconnectTick {
 
 function Show-DisconnectError {
     Hide-AllControls
-    $script:statusLabel.Text = "The device didn't disconnect automatically.`n`nIf Windows shows a 'drive in use' dialog, click Cancel and use 'Safely Remove Hardware' (system tray) to eject the Kobo. Then click Continue."
+    $script:statusLabel.Text = "The device didn't disconnect automatically.`n`nWARNING: Do NOT click 'Continue' on any 'drive in use' dialog Windows shows — that can corrupt the install and brick the device.`n`nInstead: click Cancel on Windows' dialog, use 'Safely Remove Hardware' (system tray) to eject the Kobo, wait for the safe-to-remove notification, then click Continue below."
     Set-PrimaryButton "Continue" {
         Start-Disconnect $script:S.DisconnectOnSuccess
     }

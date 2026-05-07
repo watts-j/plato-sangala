@@ -23,6 +23,40 @@ param(
 $ErrorActionPreference = 'Stop'
 $LogPath = Join-Path $PSScriptRoot 'install-sangala.log'
 
+# Win32 P/Invoke: flushes Windows' lazy-write cache for a volume before
+# we try to eject it. Without this, Copy-Item can return while writes
+# are still buffered in RAM; the eject then fails (or worse, succeeds
+# without flushing) and the device sees a partial/corrupted file.
+$flushType = @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class VolumeFlush {
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr CreateFile(
+        string fileName, uint desiredAccess, uint shareMode,
+        IntPtr securityAttributes, uint creationDisposition,
+        uint flagsAndAttributes, IntPtr templateFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FlushFileBuffers(IntPtr hFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    public static bool Flush(string driveLetter) {
+        IntPtr h = CreateFile(@"\\.\" + driveLetter,
+            0x40000000, 0x1 | 0x2, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        if (h == new IntPtr(-1)) { return false; }
+        bool ok = FlushFileBuffers(h);
+        CloseHandle(h);
+        return ok;
+    }
+}
+"@
+if (-not ('VolumeFlush' -as [type])) {
+    Add-Type -TypeDefinition $flushType
+}
+
 function Write-Log {
     param([string]$Level, [string]$Message)
     $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -57,7 +91,27 @@ function Find-Kobo {
     return $null
 }
 
+function Flush-Drive($driveLetter) {
+    # Force-flush Windows' write cache for the drive. Returns $true on success.
+    try {
+        if ([VolumeFlush]::Flush($driveLetter)) {
+            Write-Log 'INFO' "Flushed write cache for $driveLetter"
+            return $true
+        }
+        $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        Write-Log 'WARN' "FlushFileBuffers failed for $driveLetter (Win32 error $err)"
+    }
+    catch {
+        Write-Log 'WARN' "Flush-Drive exception for $driveLetter`: $($_.Exception.Message)"
+    }
+    return $false
+}
+
 function Eject-Drive($driveLetter) {
+    # Cooperative dismount only. We deliberately do NOT fall through to
+    # Shell.Application.InvokeVerb("Eject"), because that path shows
+    # Windows' "drive in use" dialog whose Continue button forcibly
+    # dismounts and corrupts in-flight writes (factory-reset hazard).
     try {
         $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
         if ($vol) {
@@ -66,14 +120,7 @@ function Eject-Drive($driveLetter) {
                 Write-Log 'INFO' "Dismounted $driveLetter via Win32_Volume"
                 return
             }
-            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter; falling back to Shell eject"
-        }
-        $shell = New-Object -ComObject Shell.Application
-        $folder = $shell.Namespace(17)
-        $item = $folder.ParseName($driveLetter + "\")
-        if ($item) {
-            $item.InvokeVerb("Eject")
-            Write-Log 'INFO' "Ejected $driveLetter via Shell.Application"
+            Write-Log 'WARN' "Win32_Volume.Dismount returned $($result.ReturnValue) for $driveLetter"
         }
     }
     catch {
@@ -96,15 +143,23 @@ function Wait-ForDriveGone($driveLetter, $timeoutSeconds = 60) {
 }
 
 function Disconnect-Kobo($driveLetter) {
-    Write-Host "Ejecting device..." -ForegroundColor Cyan
+    Write-Host "Flushing writes and ejecting $driveLetter..." -ForegroundColor Cyan
+    Flush-Drive $driveLetter | Out-Null
+    Start-Sleep -Seconds 1
     Eject-Drive $driveLetter
     if (-not (Wait-ForDriveGone $driveLetter)) {
         Write-Host ""
-        Write-Host "The device didn't disconnect automatically. If Windows shows a dialog" -ForegroundColor Yellow
-        Write-Host "saying the drive is in use, click Cancel and use 'Safely Remove Hardware'" -ForegroundColor Yellow
-        Write-Host "(system tray icon) to eject the Kobo. Or simply unplug and replug the USB cable." -ForegroundColor Yellow
+        Write-Host "*** WARNING ***" -ForegroundColor Red
+        Write-Host "The device didn't disconnect automatically. DO NOT click 'Continue' on" -ForegroundColor Red
+        Write-Host "any 'drive in use' dialog Windows may show — that can corrupt the install" -ForegroundColor Red
+        Write-Host "and brick the device, requiring a factory reset." -ForegroundColor Red
         Write-Host ""
-        Read-Host "Press Enter once the device has disconnected"
+        Write-Host "Instead:" -ForegroundColor Yellow
+        Write-Host "  1. Click Cancel on any Windows dialog about the drive being in use." -ForegroundColor Yellow
+        Write-Host "  2. Use 'Safely Remove Hardware' (system tray icon) to eject the Kobo." -ForegroundColor Yellow
+        Write-Host "  3. Wait for Windows' notification that it's safe to remove." -ForegroundColor Yellow
+        Write-Host ""
+        Read-Host "Press Enter ONLY after the device has fully disconnected"
         # Brief extra wait in case the user pressed Enter prematurely.
         Wait-ForDriveGone $driveLetter 10 | Out-Null
     }
