@@ -21,7 +21,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$LogPath = Join-Path $PSScriptRoot 'install-sangala.log'
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } elseif ($MyInvocation.MyCommand.Definition) { Split-Path -Parent -Path $MyInvocation.MyCommand.Definition } else { Get-Location }
+$LogPath = Join-Path $ScriptDir 'install-sangala.log'
 
 # Win32 P/Invoke: flushes Windows' lazy-write cache for a volume before
 # we try to eject it. Without this, Copy-Item can return while writes
@@ -53,14 +54,26 @@ public static class VolumeFlush {
     }
 }
 "@
-if (-not ('VolumeFlush' -as [type])) {
-    Add-Type -TypeDefinition $flushType
+function Initialize-FlushType {
+    if (-not ('VolumeFlush' -as [type])) {
+        try {
+            Add-Type -TypeDefinition $script:flushType -ErrorAction Stop
+        }
+        catch {
+            Write-Log 'WARN' "Could not compile FlushFileBuffers wrapper: $($_.Exception.Message)"
+        }
+    }
 }
 
 function Write-Log {
     param([string]$Level, [string]$Message)
-    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    "$ts [$Level] $Message" | Out-File -FilePath $LogPath -Append -Encoding utf8
+    try {
+        $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        "$ts [$Level] $Message" | Out-File -FilePath $script:LogPath -Append -Encoding utf8 -ErrorAction Stop
+    }
+    catch {
+        # Logging is best-effort; never let it terminate the script.
+    }
 }
 
 function Get-PackageVersion($name) {
@@ -93,6 +106,11 @@ function Find-Kobo {
 
 function Flush-Drive($driveLetter) {
     # Force-flush Windows' write cache for the drive. Returns $true on success.
+    Initialize-FlushType
+    if (-not ('VolumeFlush' -as [type])) {
+        Write-Log 'WARN' 'FlushFileBuffers wrapper unavailable; skipping flush.'
+        return $false
+    }
     try {
         if ([VolumeFlush]::Flush($driveLetter)) {
             Write-Log 'INFO' "Flushed write cache for $driveLetter"

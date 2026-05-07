@@ -48,8 +48,15 @@ public static class VolumeFlush {
     }
 }
 "@
-if (-not ('VolumeFlush' -as [type])) {
-    Add-Type -TypeDefinition $flushType
+function Initialize-FlushType {
+    if (-not ('VolumeFlush' -as [type])) {
+        try {
+            Add-Type -TypeDefinition $script:flushType -ErrorAction Stop
+        }
+        catch {
+            Write-Log 'WARN' "Could not compile FlushFileBuffers wrapper: $($_.Exception.Message)"
+        }
+    }
 }
 
 # --- Logging --------------------------------------------------------------
@@ -91,6 +98,11 @@ function Find-Kobo {
 }
 
 function Flush-Drive($driveLetter) {
+    Initialize-FlushType
+    if (-not ('VolumeFlush' -as [type])) {
+        Write-Log 'WARN' 'FlushFileBuffers wrapper unavailable; skipping flush.'
+        return $false
+    }
     try {
         if ([VolumeFlush]::Flush($driveLetter)) {
             Write-Log 'INFO' "Flushed write cache for $driveLetter"
