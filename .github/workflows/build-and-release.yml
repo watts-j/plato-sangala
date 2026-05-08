@@ -165,22 +165,6 @@ jobs:
             **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
             and the EPUB library. No system changes, no reboot.
 
-            **`install-sangala.zip`** — Optional Windows installer. Contains
-            two PowerShell scripts: a button-driven GUI (`install-sangala-gui.ps1`)
-            and a console version (`install-sangala.ps1`). Both automate the
-            install/update flow and prompt for the reader's name on a fresh
-            install.
-
-            ### Quick install (Windows, recommended)
-            1. Download `install-sangala.zip`, `-install.tar.gz`, and
-               `-update.tar.gz` into the same folder. Extract all three.
-            2. Connect Kobo via USB.
-            3. Right-click `install-sangala-gui.ps1` → Run with PowerShell.
-               (Or use `install-sangala.ps1` for the console version.)
-               The script auto-detects install vs. update, prompts for the
-               reader's name on a fresh install, waits for the post-reboot
-               reconnect, and ejects when done.
-
             ### Manual install
             1. Connect Kobo via USB.
             2. Extract `-install.tar.gz`. Copy its contents to the root of the
@@ -192,16 +176,7 @@ jobs:
             5. Eject.
 
             ### Subsequent updates
-            Apply only `-update.tar.gz` — manual steps 4–5 above, or re-run
-            the installer script (it detects the existing install and
-            applies just the update).
-
-            ### Included EPUB content
-            - **STEM > Science > Biology**: Concepts of Biology
-            - **Enrichment > Fiction**: Penrod, The Verger
-            - **Enrichment > Sangala Story Exchange**: A Leopard in the Forest
-            - **Resources > About**: Sangala Reader Initiative
-            - **Resources > Newsletters**: Newsletter (Fall 2025) - REACH for Uganda
+            Apply only `-update.tar.gz` — manual steps 4–5 above.
           files: |
             plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
             plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
