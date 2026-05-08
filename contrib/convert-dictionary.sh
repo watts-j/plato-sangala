@@ -2,11 +2,15 @@
 # Converts a StarDict dictionary to the dictd format.
 # The first argument must be the path to the IFO file.
 #
-# Crash-safe: source files are hard-linked to .${base}.bak.${ext} before
-# any destructive operation, and a .${base}.converting marker is touched.
-# If the script gets killed mid-conversion (reboot, USB-connect, low
-# battery), the next run sees the marker, wipes any partial state, and
-# restores the sources from the hard-linked backups before retrying.
+# Crash-safe: source files are linked (or copied, on FAT) to
+# .${base}.bak.${ext} before any destructive operation, and a
+# .${base}.converting marker is touched. If the script gets killed
+# mid-conversion (reboot, USB-connect, low battery), the next run sees
+# the marker, wipes any partial state, and restores the sources from
+# the backups before retrying.
+#
+# Output: stdout/stderr is redirected to dictionary.log by plato.sh, so
+# the start/end markers and any tool errors are captured for triage.
 
 trap 'exit 1' ERR
 
@@ -20,12 +24,14 @@ base_name=$(basename "$base")
 recovery_marker="${dir}/.${base_name}.converting"
 backup_prefix="${dir}/.${base_name}.bak."
 
+echo "[$(date)] convert-dictionary.sh start: $1"
+
 # --- Recovery -------------------------------------------------------------
 # A leftover marker means a previous run died mid-conversion. Wipe partial
-# state and restore the source files from the hard-linked backups before
-# retrying. Errors here are benign (best-effort cleanup).
+# state and restore the source files from the backups before retrying.
+# Errors here are benign (best-effort cleanup).
 if [ -e "$recovery_marker" ]; then
-    echo "Recovery: previous conversion of ${short_name} was interrupted; restoring sources."
+    echo "[$(date)] recovery: previous conversion of ${short_name} was interrupted; restoring sources"
     trap - ERR
     rm -f "$1" "${base}.idx" "${base}.txt" "${base}.syn" "${base}.dict" "${base}.dict.dz" "${base}.index" 2>/dev/null
     for bak in "${backup_prefix}"*; do
@@ -37,15 +43,18 @@ if [ -e "$recovery_marker" ]; then
 fi
 
 # --- Backup ---------------------------------------------------------------
-# Hard-link each source to .bak.<ext>. dictzip -d's unlink of the original
-# name doesn't free the inode while the .bak name still references it, so
-# we can recover from any partial conversion state below.
+# Link each source to .bak.<ext> so we can recover from a partial
+# conversion. ln preserves the inode (no extra disk use) on filesystems
+# that support hardlinks. /mnt/onboard is vfat/exFAT, which does NOT
+# support hardlinks -- ln fails with EPERM there, so we fall back to cp.
+# cp duplicates the bytes (~58 MB extra during conversion); the backups
+# are removed at the end on success.
 for ext in ifo idx dict.dz syn; do
     src="${base}.${ext}"
     bak="${backup_prefix}${ext}"
     if [ -e "$src" ]; then
         rm -f "$bak"
-        ln "$src" "$bak"
+        ln "$src" "$bak" 2>/dev/null || cp "$src" "$bak"
     fi
 done
 
@@ -53,7 +62,7 @@ done
 : > "$recovery_marker"
 
 # --- Conversion (unchanged from upstream) ---------------------------------
-echo "Converting ${short_name} (${1})."
+echo "[$(date)] converting ${short_name} (${1})"
 
 [ -e "${base}.dict.dz" ] && "$bindir"/dictzip -d "${base}.dict.dz"
 
@@ -73,3 +82,5 @@ rm "$1" "${base}.idx" "${base}.txt"
 # --- Cleanup --------------------------------------------------------------
 # Conversion fully succeeded. Drop the recovery state.
 rm -f "${backup_prefix}"* "$recovery_marker"
+
+echo "[$(date)] convert-dictionary.sh done: ${short_name}"
