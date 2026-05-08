@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-05-06
+Last updated: 2026-05-08
 
 ## Working Conventions (read first)
 
@@ -18,8 +18,9 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.46-sangala** — **Latest pre-release. Identical commit to v2.45** (tag was created twice during this session due to a misread `git rev-parse v2.45-sangala^{commit}`; PowerShell ate the `{commit}` brace and ran `git rev-parse v2.45-sangala^`, which returns the parent commit, not the tag's commit). Both v2.45 and v2.46 point at `6d0f08a` and ship identical artifacts. Use either; consider deleting v2.46 to avoid confusion.
-- **v2.45-sangala** — Same commit as v2.46. Welcome label is now just the configured name (e.g., "Jo") rather than "Welcome, Jo!". `convert-dictionary.sh` is now crash-safe via hardlink backups (Option G); see "Crash-safe dictionary conversion" below. Untested on device as of session end.
+- **v2.47-sangala (next)** — Tip of `claude/customize-plato-ui-1Edbm`. Three fixes targeted at the failed v2.46 device test (2026-05-08): (1) installer eject now uses `CM_Request_Device_Eject` (Safely-Remove-Hardware path) before falling back to volume dismount — the v2.46 cooperative dismount returned success but left the FAT dirty, and `fsck.fat` at next boot truncated `dictionary.dict.dz` from 32 MB to 14 MB plus several EPUBs; (2) `convert-dictionary.sh` falls back to `cp` when `ln` fails, since `/mnt/onboard` is vfat/exFAT and doesn't support hardlinks (the unconditional `ln` in v2.45's Option G makes the ERR trap exit before any conversion runs); (3) conversion stdout/stderr captured to `/mnt/onboard/.adds/plato/dictionary.log` for triage. Not yet tagged; tag after fresh device test passes.
+- **v2.46-sangala** — **Has two known regressions; do not redistribute.** (a) Installer eject path leaves FAT dirty, causing fsck-truncation of dict.dz and several EPUBs on next boot. (b) `convert-dictionary.sh`'s unconditional `ln` fails on vfat → conversion never runs even with intact sources. Identical commit (`6d0f08a`) to v2.45. Both should be removed or marked broken.
+- **v2.45-sangala** — Same broken commit as v2.46. Welcome label is now just the configured name (e.g., "Jo") rather than "Welcome, Jo!". `convert-dictionary.sh` was reworked to be crash-safe via hardlink backups (Option G), but the hardlink call breaks on vfat — see v2.47 entry above.
 - **v2.44-sangala** — `plato-autostart.sh` now skips the 5 s post-DB grace on subsequent boots, so Nickel does not become visible after install (only the loading dots → Plato startup). Factory-reset path unchanged. Untested on device.
 - **v2.43-sangala** — PS 5.1 string parser fix: `"$pct%"` rebuilt with the format operator. Earlier installer cycles for v2.41/v2.42 hit cascading parse errors in PS 5.1 only.
 - **v2.42-sangala** — Skipped functionally; same content as v2.41.
@@ -52,7 +53,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.47-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes).
+**v2.47-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes). Carries the eject-path fix, the FAT-cp fallback, and the dictionary.log diagnostic — see Reference Versions.
 
 **Tagging discipline:** before suggesting any next tag number, fetch tags and check `git ls-remote --tags origin | grep sangala | sort -V | tail` (or use `mcp__github__list_tags`). This session shipped a duplicate v2.46 tag because the assistant reasoned about tag positions from a misread `git rev-parse v2.X-sangala^{commit}` output (PowerShell ate the `{commit}` brace, the resulting `^` returned the parent commit, and the assistant treated that as the tag's commit). Always single-quote refs with `{}` in PowerShell: `'v2.X-sangala^{commit}'`.
 
@@ -79,7 +80,11 @@ Fresh install flow: copy install → eject → device updates and reboots → re
 **Installer scripts** (both shipped inside `install-sangala.zip`):
 - `sangala/installer/install-sangala-gui.ps1` — WinForms wizard. Connect → detect → (fresh install: prompt for reader's name) → progress bar → eject → wait-for-reconnect → progress bar → done. Background runspace handles the long file copies; a 500 ms timer polls progress and reconnect state.
 - `sangala/installer/install-sangala.ps1` — Console flow with the same logic.
-- Both: auto-detect the Kobo by `KOBOeReader` volume name; determine install vs. update by checking for `\.adds\plato\plato`; clean up old non-dot library folders; log to `install-sangala.log` next to the script; patch `welcome-name` in the package's `Settings.toml` (fresh install) or read it from the device and patch the update package (standalone update); call `FlushFileBuffers` via P/Invoke before any eject; cooperative `Win32_Volume.Dismount` first, then force-dismount; **never** call `Shell.Application.InvokeVerb("Eject")` — that path's "drive in use" Continue dialog is the path that bricked v2.39's test device.
+- Both: auto-detect the Kobo by `KOBOeReader` volume name; determine install vs. update by checking for `\.adds\plato\plato`; clean up old non-dot library folders; log to `install-sangala.log` next to the script; patch `welcome-name` in the package's `Settings.toml` (fresh install) or read it from the device and patch the update package (standalone update); call `FlushFileBuffers` via P/Invoke before any eject; **eject path (v2.47+)**: try `CM_Request_Device_Eject` (Safely-Remove-Hardware equivalent, via SetupAPI/Cfgmgr32) first, fall back to cooperative `Win32_Volume.Dismount` then force-dismount; **never** call `Shell.Application.InvokeVerb("Eject")` — that path's "drive in use" Continue dialog is the path that bricked v2.39's test device.
+
+**Eject corruption (v2.46 finding).** The flush + cooperative `Win32_Volume.Dismount` path returns success but only releases the volume from the host's filesystem stack. The USB device stays attached and the device-side flash controller can miss the SCSI SYNCHRONIZE CACHE that a real eject would issue. On the v2.46 install on a Clara BW, `install-sangala.log` reported "Dismounted F: via Win32_Volume (cooperative)" both times, but `fsck.fat` at next boot found the dirty bit set, truncated `dictionary.dict.dz` from ~32 MB to ~14 MB, and reported six EPUBs corrupted ("Could not find EOCD"). Reclaimed clusters were salvaged into `FSCK0000.REC`/`FSCK0001.REC` in the drive root. v2.47 fixes this by issuing a real device eject via `CM_Request_Device_Eject` before falling back to the volume dismount.
+
+**Phase 2 reconnect requires manual user action.** After the post-Phase-1 reboot, the device boots straight into Plato — Plato does not auto-enter USB Mass Storage Mode just because a cable is plugged in. The installer's "wait for reconnect" loop polls the host until the drive letter reappears, but the drive only reappears after the user taps **Connect USB** in Plato's burger menu. The CLI installer logs this in `Wait-ForKobo` ("Make sure USB is plugged in and tap 'Connect USB' on the device.") but it could be more prominent. Auto-detecting the reconnect would require Plato itself to enter USBMS on cable detect; out of scope for the installer.
 
 **PS 5.1 parser quirks the installers must work around** (each one was hit during this session):
 1. `"$var%"` inside double quotes — PS 5.1 reads `%` as the modulo operator and bails. Use `'{0}%' -f $var` (single-quoted format string + `-f`).
@@ -111,7 +116,8 @@ Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI. **Hardware buttons: p
 ## Architecture
 
 - Auto-launch: `plato-autostart.sh` in system partition (installed via KoboRoot.tgz). Waits for `pidof nickel`, then for `/mnt/onboard/.kobo/KoboReader.sqlite` to exist (60s cap, near-zero on subsequent boots), plus a 5s grace period; then `pkill -f on-animator` and `exec /mnt/onboard/.adds/plato/plato.sh`.
-- Dictionary conversion (`convert-dictionary.sh`) is forked into the background by `plato.sh` so it doesn't block Plato startup. First-launch dictionary lookups may fail until conversion completes; second launch is fine.
+- Dictionary conversion (`convert-dictionary.sh`) is forked into the background by `plato.sh` so it doesn't block Plato startup. First-launch dictionary lookups may fail until conversion completes; second launch is fine. Output is captured to `/mnt/onboard/.adds/plato/dictionary.log` (v2.47+) — pull this over USB if conversion appears to fail; it shows the timestamped start/end markers, recovery-path hits, and any tool errors.
+- **`/mnt/onboard` is vfat or exFAT** — neither supports hardlinks. `ln src dst` returns `EPERM` on these filesystems. This affected v2.45/v2.46 because Option G's crash-safe rework called `ln` unconditionally for backup snapshots; combined with the script's `trap 'exit 1' ERR`, conversion exited before any work was done. v2.47+ falls back to `cp` on `ln` failure (cost: ~58 MB temporary disk during conversion, cleaned up on success). Do not rewrite the conversion script to assume hardlinks work.
 - No KFMon, no NickelMenu.
 - KoboRoot.tgz is the committed minimal `sangala/kobo-assets/KoboRoot.tgz` (~1KB): only `etc/init.d/on-animator.sh` (slim, no KFMon hook) and `usr/local/bin/plato-autostart.sh`.
 - Dictionary: Wiktionary English (StarDict format), converted on-device on first use (~1-2 min)
@@ -248,21 +254,30 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - Sangala Reader Initiative (About/)
 - Newsletter (Fall 2025) - REACH for Uganda (REACH for Uganda Newsletters/)
 
-## Session-End Handoff (2026-05-07)
+## Session-End Handoff (2026-05-08)
 
-The most recent session got tangled in a long iteration loop on PowerShell 5.1 parser quirks and a device brick during eject. v2.45/v2.46 are the current head, untested on device. To pick up clean, the next session should focus on these three priorities **in order**:
+v2.46 was tested on factory-reset Clara BW and failed on multiple fronts. Three independent fixes are in `claude/customize-plato-ui-1Edbm` waiting to ship as v2.47:
 
-1. **Verify the CLI installer end-to-end on a factory-reset Clara BW.** Use v2.46's `install-sangala.zip` + matching tarballs. Watch for: name prompt accepts a value, both copy phases show progress %, eject succeeds without showing the "drive in use" Continue dialog (`b5d4dbd`'s force-dismount-after-flush should make this work without the manual eject prompt), the device reboots and lands in Plato directly with no Nickel visible (`2566fc7`'s no-grace-on-subsequent-boots), and the welcome screen says just the user's name (`6d0f08a`).
+1. **Eject path** (`664b681`) — installer uses `CM_Request_Device_Eject` (Safely-Remove-Hardware equivalent via SetupAPI/Cfgmgr32) before falling back to `Win32_Volume.Dismount`. v2.46's cooperative dismount returned success but left the FAT dirty; `fsck.fat` at next boot truncated `dictionary.dict.dz` to 14 MB and corrupted six EPUBs.
+2. **FAT cp fallback** (`553102c`) — `convert-dictionary.sh` falls back to `cp` when `ln` fails. v2.45/v2.46's Option G called `ln` unconditionally, which `EPERM`s on vfat, exits the script via `trap 'exit 1' ERR`, and leaves the dictionary unconverted.
+3. **Conversion log** (`553102c`) — output of `convert-dictionary.sh` redirects to `/mnt/onboard/.adds/plato/dictionary.log`, with timestamped start/end markers. Pull this over USB to triage; v2.46 had no record at all of why conversion failed.
 
-2. **Verify the dictionary path.** v2.45+ ships the crash-safe `convert-dictionary.sh` (Option G, hardlink backups + `.converting` marker). After a fresh install: leave the device alone for ~5 minutes, then look up a word — should succeed. Then deliberately interrupt mid-conversion (USB-connect or reboot during the conversion window) and confirm the next boot recovers (re-runs from sources). If it works, the longstanding "interrupt during install bricks the dictionary" hazard is closed. The `Option G` long-term TODO was implemented in `6d0f08a`; if device verification confirms it works, the TODO can be dropped.
+To pick up clean: tag v2.47 and retest the CLI installer on a factory-reset Clara BW. Watch for:
 
-3. **Verify the GUI installer.** Same flow as #1 but using `install-sangala-gui.ps1`. Watch for: window opens (no PS 5.1 parse error), state machine progresses correctly through Initial → DetectedFresh → NamePrompt → InstallStep1 → WaitingForReconnect → DetectedUpdate → Updating → Done, progress bar updates during copy, Disconnect-Async waits for the drive to actually disappear before advancing.
+- `install-sangala.log` reports "Ejected F: via CM_Request_Device_Eject" (new INFO line). If it instead says "Falling back to volume-level dismount", the new path failed — investigate the rc/veto string in the WARN line above it.
+- Drive disappears on its own after the eject; user does not need to do "Safely Remove Hardware" manually.
+- After Phase 1 reboot, Plato shows the welcome screen. User must tap **Connect USB** in the burger menu to start Phase 2 (no auto-reconnect — see Package Structure section).
+- After full install + ~3 minutes idle, dictionary lookup succeeds.
+- `/mnt/onboard/.adds/plato/dictionary.log` exists and shows successful "convert-dictionary.sh done: Wiktionary English Dictionary" line.
+- `/mnt/onboard/.adds/plato/info.log` does NOT contain `fsck.fat` output and does NOT contain "Could not find EOCD" errors.
+
+If v2.47 device test passes, promote on GitHub Releases. v2.45 and v2.46 should be deleted or marked broken (see Reference Versions).
 
 Risks to watch for:
 
-- **Device brick recurrence.** v2.39 bricked a test device. The cause was Windows' "drive in use" Continue dialog (from `Shell.Application.InvokeVerb("Eject")`) being clicked while KoboRoot.tgz writes were still buffered. v2.41+ removes that path entirely and flushes via `FlushFileBuffers` first, so this should not recur — but if it does, **do not click Continue on any Windows drive-in-use dialog**. Use Safely Remove Hardware.
-- **PS 5.1 parser regressions.** The five quirks listed in "PS 5.1 parser quirks the installers must work around" above are easy to reintroduce when editing strings. Run the parser pre-flight from PS 5.1 before each push, not after CI.
-- **Tag bookkeeping.** Always `git fetch origin --tags` first, then `mcp__github__list_tags` (or `git ls-remote --tags origin | sort -V`) to verify the current latest tag before naming the next one. Single-quote refs with `{}` in PowerShell.
+- **Device brick recurrence.** v2.39 bricked a test device via the Shell verb's Continue dialog. v2.41+ removed that path; v2.47's `CM_Request_Device_Eject` is also dialog-free. If the new eject hangs or fails, fallback is the existing flush+cooperative+force-dismount — known to leave the FAT dirty but not catastrophically.
+- **PS 5.1 parser regressions.** The five quirks listed in "PS 5.1 parser quirks the installers must work around" are easy to reintroduce when editing strings. Run the parser pre-flight from PS 5.1 before each push, not after CI. The new `$ejectType` here-string is large (~170 lines of inline C#) — verify it parses.
+- **Tag bookkeeping.** Always `git fetch origin --tags` first, then `mcp__github__list_tags` (or `git ls-remote --tags origin | sort -V`) to verify the current latest tag. Single-quote refs with `{}` in PowerShell.
 
 ## Known Issues / Pending
 
@@ -270,7 +285,7 @@ Risks to watch for:
 
 ## Long-term TODO
 
-- **Pre-convert dictionary in CI (Option B).** `plato.sh` currently forks `convert-dictionary.sh` into the background to avoid blocking Plato startup; first-launch dictionary lookups fail until conversion completes (multiple minutes on Clara BW). Better path: convert StarDict → dictd format in CI, ship only the `.dict.dz` + `.index`, no on-device conversion ever. The previous attempt (commit `306f5a6`, reverted in `4ec30af`) shipped a 79MB `.index` and was reverted with the note "76MB index too large for device RAM" — but the artifacts at `sangala/dictionaries-converted/` look malformed (multiple entries with empty headwords), suggesting the Python `convert-stardict.py` had a bug, not that Plato truly couldn't handle the index. Doing this right needs (1) a working non-ARM converter (e.g., `pyglossary`), and (2) a Clara BW memory test with the resulting index. **Lower priority now that Option G is implemented in v2.45.**
+- **Pre-convert dictionary in CI (Option B).** `plato.sh` currently forks `convert-dictionary.sh` into the background to avoid blocking Plato startup; first-launch dictionary lookups fail until conversion completes (multiple minutes on Clara BW). Better path: convert StarDict → dictd format in CI, ship only the `.dict.dz` + `.index`, no on-device conversion ever. The previous attempt (commit `306f5a6`, reverted in `4ec30af`) shipped a 79MB `.index` and was reverted with the note "76MB index too large for device RAM" — but the artifacts at `sangala/dictionaries-converted/` look malformed (multiple entries with empty headwords), suggesting the Python `convert-stardict.py` had a bug, not that Plato truly couldn't handle the index. Doing this right needs (1) a working non-ARM converter (e.g., `pyglossary`), and (2) a Clara BW memory test with the resulting index. Now that v2.47 fixes Option G's FAT bug, this is a nice-to-have rather than a blocker.
 
 - **Reduce first-install boot time by deprioritizing background conversion.** v2.32 backgrounds `convert-dictionary.sh` so Plato can launch without waiting on it, but the conversion's disk I/O contends with Plato's startup reads on Clara BW's slow flash. Wrap the backgrounded call with `nice -n 19` and an initial `sleep 30` so Plato has uncontended I/O during its startup. Expected savings: 30–60 s on first boot.
 
@@ -293,8 +308,10 @@ Risks to watch for:
 13. v2.20 (commit `0189d82`) introduced the minimal KoboRoot.tgz and removed KFMon. v2.28 tried to undo that and made things worse — putting KFMon back alongside our plato-autostart.sh creates two competing launchers, since v2.3's on-animator.sh starts both. If KFMon is ever reintroduced, plato-autostart.sh must be removed (or made a no-op) at the same time.
 14. Trust git history over CLAUDE-STATE.md. Verify claims against `git ls-tree`/`git diff` before acting on them.
 15. Inspect the actual built artifact (download the install tarball, extract KoboRoot.tgz, read the scripts) before declaring a fix complete. Building correctly does not imply running correctly.
-16. **Never use Windows' `Shell.Application.InvokeVerb("Eject")` on a Kobo mid-install.** The "drive in use" Continue dialog forcibly dismounts and discards Windows' lazy-write cache; if KoboRoot.tgz is still buffered, Nickel boots into a corrupted system update and factory-resets the device. Always `FlushFileBuffers` first, then `Win32_Volume.Dismount` cooperative, then `Win32_Volume.Dismount` forced. v2.39 bricked a test device; v2.41 fixed the path.
+16. **Never use Windows' `Shell.Application.InvokeVerb("Eject")` on a Kobo mid-install.** The "drive in use" Continue dialog forcibly dismounts and discards Windows' lazy-write cache; if KoboRoot.tgz is still buffered, Nickel boots into a corrupted system update and factory-resets the device. v2.39 bricked a test device; v2.41 removed the Shell verb path. **`Win32_Volume.Dismount` cooperative isn't sufficient either** (v2.46 finding) — it returns success but only releases the volume from the FS stack, leaving the device-side flash controller without a SCSI SYNCHRONIZE CACHE. fsck.fat at next boot then truncates files. v2.47 uses `CM_Request_Device_Eject` (Safely-Remove-Hardware path via SetupAPI/Cfgmgr32) for a real device-level eject before falling back to the volume dismount.
 17. **PowerShell 5.1 has multiple string-parser quirks that PS 7 doesn't share.** `"$var%"`, `"text ($var word)"`, single-quoted regex with embedded `"` and `[`, here-string opener detection, non-ASCII characters — every one of these tripped this session. Run `[System.Management.Automation.Language.Parser]::ParseFile` from PS 5.1 to pre-flight before pushing.
 18. **Tag refs with `{}` need single quotes in PowerShell.** `git rev-parse v2.X-sangala^{commit}` becomes `git rev-parse v2.X-sangala^` (returning the parent commit) when PS 5.1 strips the brace. Always: `git rev-parse 'v2.X-sangala^{commit}'`.
+19. **`/mnt/onboard` is FAT — no hardlinks.** `ln src dst` returns `EPERM` on vfat/exFAT. Any conversion script using `ln` for backup snapshots needs an `|| cp` fallback or it'll exit silently before doing any work (v2.45 Option G regression).
+20. **An eject log line saying "success" is not evidence the device flushed.** v2.46's `install-sangala.log` happily reported "Dismounted F: via Win32_Volume (cooperative)" while the FAT was being left dirty. Confirm an eject worked by either: (a) checking that the drive letter actually disappeared from the host (`Test-Path "$drive\"` returns false), and (b) inspecting `info.log` from the next boot for any `fsck.fat` output — if fsck ran with corrections, the previous eject was unsafe.
 19. **GitHub raw URLs are CDN-cached for ~5 minutes.** When iterating an installer script, cache-bust pulls with `?cb=$([guid]::NewGuid().ToString())` to avoid debugging stale code. After this, also re-run the parser pre-flight to confirm what was downloaded matches what was pushed.
 20. **Most macOS users won't see the Sangala folders** in Finder by default because they all start with `.`. Cmd+Shift+. toggles hidden-file visibility. Same files exist; Finder just hides them. Tell users this up front.
