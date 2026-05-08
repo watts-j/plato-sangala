@@ -18,7 +18,7 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.48-sangala (next)** — Tip of `claude/customize-plato-ui-1Edbm`. Three follow-on fixes after v2.47's device test (2026-05-08) revealed remaining friction: (1) installer adds `IOCTL_STORAGE_EJECT_MEDIA` before `CM_Request_Device_Eject` so the Kobo exits USBMS automatically — without it, the host-side eject worked cleanly but the device's screen stayed on "Connected" until the user yanked the cable; (2) `convert-dictionary.sh` swaps `trap 'exit 1' ERR` (busybox doesn't recognize the `ERR` signal) for `set -e`, which busybox does support — silences `trap: ERR: invalid signal specification` log noise and gives us actual exit-on-error; (3) Plato's `query_to_content` auto-triggers `load_dictionaries()` if the map is empty at lookup time, so the first dictionary lookup after a fresh install no longer requires a manual "Reload Dictionaries" menu pick (the StarDict-to-dictd conversion finishes after Plato's startup-time `load_dictionaries()` already ran). Not yet tagged.
+- **v2.48-sangala** — **Current stable.** Verified end-to-end on factory-reset Clara BW (2026-05-08). CLI installer ships as the only supported path; the GUI installer (`install-sangala-gui.ps1`) remains in the repo but is **NOT bundled in `install-sangala.zip`** until it is independently verified on device. Three fixes over v2.47: (1) installer adds `IOCTL_STORAGE_EJECT_MEDIA` (after `FSCTL_LOCK_VOLUME` + `FSCTL_DISMOUNT_VOLUME`) before `CM_Request_Device_Eject` — without it, the host-side eject works but the Kobo's screen stays on "Connected" until cable yank; (2) `convert-dictionary.sh` swaps busybox-incompatible `trap '...' ERR` for `set -e` — silences `trap: ERR: invalid signal specification` log noise and gives actual exit-on-error semantics; (3) Plato's `query_to_content` auto-triggers `load_dictionaries()` if the map is empty at lookup time, so the first dictionary lookup after a fresh install no longer requires a manual "Reload Dictionaries" menu pick (provided the user waits for the on-device StarDict→dictd conversion to finish; about 1–2 minutes). Known oddity not in our scope: Kobo's update-processing flow on factory-reset Clara BW splits the KoboRoot.tgz application across two reboots with a spurious "power too low" warning between them; the install completes correctly despite this.
 - **v2.47-sangala** — First v2.x build whose CLI installer doesn't corrupt FAT during eject. Three fixes after v2.46's device test failed: (a) installer uses `CM_Request_Device_Eject` (Safely-Remove-Hardware path) before falling back to volume dismount — confirmed working via `Ejected F: via CM_Request_Device_Eject` log lines and absence of `fsck.fat` corrections in `info.log`; (b) `convert-dictionary.sh` falls back to `cp` when `ln` fails on vfat — turned out to be defensive-only since busybox's missing `ERR` trap meant the original `ln` failure wasn't actually exiting the script (see v2.48); (c) conversion stdout/stderr captured to `/mnt/onboard/.adds/plato/dictionary.log` — confirmed working, gave first direct evidence of the recovery path engaging successfully. Successful end-to-end install verified on factory-reset Clara BW, with two caveats: (1) cable yank still required because no SCSI EJECT, and (2) "Reload Dictionaries" still required for the first lookup. Both fixed in v2.48.
 - **v2.46-sangala** — **Has two known regressions; do not redistribute.** (a) Installer eject path leaves FAT dirty, causing fsck-truncation of dict.dz and several EPUBs on next boot. (b) `convert-dictionary.sh`'s unconditional `ln` fails on vfat → conversion can't create backups even with intact sources (though see v2.47 note: the actual `ln` failure was tolerated because busybox's missing `ERR` trap silently skipped it). Identical commit (`6d0f08a`) to v2.45. Both should be removed or marked broken.
 - **v2.45-sangala** — Same broken commit as v2.46. Welcome label is now just the configured name (e.g., "Jo") rather than "Welcome, Jo!". `convert-dictionary.sh` was reworked to be crash-safe via hardlink backups (Option G), but the hardlink call breaks on vfat — see v2.47/v2.48 entries above.
@@ -54,7 +54,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.48-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes). Adds SCSI EJECT, replaces busybox-incompatible `trap ERR` with `set -e`, and auto-reloads dictionaries on first empty lookup — see Reference Versions.
+**v2.49-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes).
 
 **Tagging discipline:** before suggesting any next tag number, fetch tags and check `git ls-remote --tags origin | grep sangala | sort -V | tail` (or use `mcp__github__list_tags`). This session shipped a duplicate v2.46 tag because the assistant reasoned about tag positions from a misread `git rev-parse v2.X-sangala^{commit}` output (PowerShell ate the `{commit}` brace, the resulting `^` returned the parent commit, and the assistant treated that as the tag's commit). Always single-quote refs with `{}` in PowerShell: `'v2.X-sangala^{commit}'`.
 
@@ -256,35 +256,26 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - Sangala Reader Initiative (About/)
 - Newsletter (Fall 2025) - REACH for Uganda (REACH for Uganda Newsletters/)
 
-## Session-End Handoff (2026-05-08, after v2.47 device test)
+## Session-End Handoff (2026-05-08, after v2.48 device test)
 
-v2.47 was tested on factory-reset Clara BW. Core fixes confirmed working:
-- `CM_Request_Device_Eject` cleanly detaches volume from host (no FAT corruption from host side)
-- `convert-dictionary.sh` ran to completion (visible via `dictionary.log` `done:` line)
-- Crash-safe recovery engaged when conversion was interrupted by Phase 2 USB-connect, restored sources from backups, and finished on the next boot
-- Dictionary lookup worked after a manual "Reload Dictionaries" menu pick
+v2.48 verified end-to-end on factory-reset Clara BW. All three v2.48 fixes did what they were supposed to:
 
-Three remaining-friction items shipped in v2.48 (this branch's tip):
-1. **SCSI EJECT** — installer adds `IOCTL_STORAGE_EJECT_MEDIA` (after `FSCTL_LOCK_VOLUME` + `FSCTL_DISMOUNT_VOLUME`) before `CM_Request_Device_Eject`. Without it, the Kobo's screen stayed on "Connected" until the cable was yanked. With it, Nickel's USBMS handler exits cleanly and the device transitions to KoboRoot.tgz processing on its own.
-2. **`set -e` not `trap ERR`** — busybox `sh` rejected `trap 'exit 1' ERR` with `trap: ERR: invalid signal specification`, so the trap silently never fired. v2.48 uses `set -e` (busybox-supported).
-3. **Auto-reload dictionaries on empty lookup** — Plato's `query_to_content` calls `context.load_dictionaries()` if `context.dictionaries.is_empty()`. First lookup after install no longer requires manually picking "Reload Dictionaries" from the title menu.
+- **SCSI EJECT works** — `Sent IOCTL_STORAGE_EJECT_MEDIA to F:` and `Ejected F: via CM_Request_Device_Eject` both logged on each eject; Kobo exits USBMS without cable yank.
+- **`set -e` works** — `dictionary.log` no longer has `trap: ERR: invalid signal specification` noise.
+- **Auto-reload dictionaries works** — first lookup after install picks up the just-finished conversion automatically *if the user waits for conversion to finish* (~1–2 minutes after Plato launches). Impatient users still need to hit "Reload Dictionaries" manually because lookups before conversion completes will report empty.
 
-To pick up clean: tag v2.48 and retest. Watch for in `install-sangala.log`:
+A Kobo-side oddity surfaced and is **not in our scope to fix**: on the post-Phase-1 reboot, the Clara BW shows three loading dots without the expected "Updating" text, then re-enters USBMS, shows a "power too low" warning even when fully charged, applies the update anyway, reboots once more, and *then* shows the proper "Updating" screen before launching Plato. The install completes correctly despite this. Likely a firmware quirk — possibly a Kobo OTA firmware update interleaving with our KoboRoot.tgz, or a battery-driver-not-ready issue right after factory reset.
 
-- `Sent IOCTL_STORAGE_EJECT_MEDIA to F:` (new INFO line) — confirms SCSI EJECT fired.
-- `Ejected F: via CM_Request_Device_Eject` — same as v2.47, confirms host-side detach.
-- Device's screen stops showing "Connected" on its own after each eject — **no cable yank required**. If a yank is still required, capture the `ScsiEject for F: failed (...)` WARN line; the SCSI EJECT path failed and we'll need to investigate the win32err.
+v2.48 is the **current stable**. CLI is the only supported install path; the GUI installer is in the repo but not bundled in `install-sangala.zip` (workflow change in this commit) until it has been independently verified on device.
 
-After Phase 2 disconnect:
-- After ~3 min idle, long-press a word → lookup works **without** manually picking "Reload Dictionaries".
-- `dictionary.log` should show `convert-dictionary.sh done: Dictionary` with no `trap: ERR: invalid signal specification` warnings interleaved.
+What's outstanding:
+- v2.45 and v2.46 should be marked broken or deleted on GitHub Releases (eject corruption regression). User to do this via web UI or `gh release edit` script.
+- v2.48 release was originally built and uploaded with the GUI in `install-sangala.zip`. After this workflow change is merged, the user should re-upload a CLI-only zip to the v2.48 release on GitHub before promoting it from pre-release to "Latest".
+- GUI installer parity testing — open question whether to invest in verifying it on device or remove it from the repo entirely. Keeping it pending verification.
 
-If v2.48 device test passes, promote on GitHub Releases. v2.45 and v2.46 should be marked broken or deleted (see Reference Versions).
-
-Risks to watch for:
-
-- **PS 5.1 parser regressions.** The `$ejectType` here-string grew with the new `ScsiEject` static method. Run `[System.Management.Automation.Language.Parser]::ParseFile` on both installer scripts from PS 5.1 before pushing the tag.
-- **`IOCTL_STORAGE_EJECT_MEDIA` "drive in use" failures.** If the host has any stale handle on the volume (Search Indexer, antivirus, third-party file manager), the IOCTL may fail with `ERROR_DRIVE_LOCKED` or similar. The path swallows the failure (logs WARN, continues to `CM_Request_Device_Eject`), but the cable yank workaround would re-emerge. Lock+Dismount in the same C# function should normally close held handles.
+Risks to watch for in future device tests:
+- **`IOCTL_STORAGE_EJECT_MEDIA` "drive in use" failures.** If the host has any stale handle on the volume (Search Indexer, antivirus, third-party file manager), the IOCTL may fail. The path swallows the failure (logs WARN, continues to `CM_Request_Device_Eject`), but the cable-yank workaround would re-emerge. Lock+Dismount in the same C# function should normally close held handles.
+- **PS 5.1 parser regressions** when editing the `$ejectType` here-string. Run `[System.Management.Automation.Language.Parser]::ParseFile` on both installer scripts from PS 5.1 before pushing any tag.
 - **Tag bookkeeping.** Always `git fetch origin --tags` first, then `mcp__github__list_tags` (or `git ls-remote --tags origin | sort -V`). Single-quote refs with `{}` in PowerShell.
 
 ## Single-package vs two-package (open question)

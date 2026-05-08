@@ -126,11 +126,14 @@ jobs:
 
       - name: Bundle installer scripts
         run: |
-          # Wrap both .ps1 installers in a .zip so they're normal downloadable
-          # assets. GitHub's release UI sometimes hides bare .ps1 attachments.
+          # Wrap the CLI installer in a .zip so it's a normal downloadable
+          # asset. GitHub's release UI sometimes hides bare .ps1 attachments.
+          # The GUI installer (install-sangala-gui.ps1) lives in the repo but
+          # is intentionally NOT shipped in releases until it has been
+          # verified on a factory-reset Clara BW. The CLI is the only
+          # supported install path for now.
           cp sangala/installer/install-sangala.ps1 install-sangala.ps1
-          cp sangala/installer/install-sangala-gui.ps1 install-sangala-gui.ps1
-          zip install-sangala.zip install-sangala.ps1 install-sangala-gui.ps1
+          zip install-sangala.zip install-sangala.ps1
           echo "All release files:"
           ls -la plato-sangala-*-install.tar.gz plato-sangala-*-update.tar.gz install-sangala.zip
 
