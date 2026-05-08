@@ -12,7 +12,9 @@
 # Output: stdout/stderr is redirected to dictionary.log by plato.sh, so
 # the start/end markers and any tool errors are captured for triage.
 
-trap 'exit 1' ERR
+# busybox sh on Kobo doesn't support `trap '...' ERR`. Use `set -e` for
+# the same exit-on-error behavior; it's portable and busybox supports it.
+set -e
 
 base=${1%.*}
 bindir=bin/utils
@@ -29,17 +31,18 @@ echo "[$(date)] convert-dictionary.sh start: $1"
 # --- Recovery -------------------------------------------------------------
 # A leftover marker means a previous run died mid-conversion. Wipe partial
 # state and restore the source files from the backups before retrying.
-# Errors here are benign (best-effort cleanup).
+# Errors here are benign (best-effort cleanup); disable set -e for the
+# whole block so a missing backup or stale partial doesn't abort.
 if [ -e "$recovery_marker" ]; then
     echo "[$(date)] recovery: previous conversion of ${short_name} was interrupted; restoring sources"
-    trap - ERR
+    set +e
     rm -f "$1" "${base}.idx" "${base}.txt" "${base}.syn" "${base}.dict" "${base}.dict.dz" "${base}.index" 2>/dev/null
     for bak in "${backup_prefix}"*; do
         [ -e "$bak" ] || continue
         ext=${bak##*.bak.}
         ln "$bak" "${base}.${ext}" 2>/dev/null || cp "$bak" "${base}.${ext}"
     done
-    trap 'exit 1' ERR
+    set -e
 fi
 
 # --- Backup ---------------------------------------------------------------

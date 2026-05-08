@@ -43,6 +43,16 @@ pub struct Dictionary {
 }
 
 fn query_to_content(query: &str, language: &String, fuzzy: bool, target: Option<&String>, context: &mut Context) -> String {
+    // load_dictionaries() runs once at Plato startup. On a fresh install
+    // the StarDict -> dictd conversion is still running in the background
+    // at that point, so the .index file doesn't exist yet and the user's
+    // first lookup hits an empty dictionaries map. Re-scan here to pick up
+    // any conversion that finished after startup; the walk is cheap when
+    // there's nothing to load.
+    if context.dictionaries.is_empty() {
+        context.load_dictionaries();
+    }
+
     let mut content = String::new();
 
     for (name, dict) in context.dictionaries.iter_mut() {

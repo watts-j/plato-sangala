@@ -122,8 +122,47 @@ public static class VolumeEjector {
     private static readonly Guid GUID_DEVINTERFACE_DISK =
         new Guid("53F56307-B6BF-11D0-94F2-00A0C91EFB8B");
     private const uint IOCTL_STORAGE_GET_DEVICE_NUMBER = 0x002D1080;
+    private const uint IOCTL_STORAGE_EJECT_MEDIA = 0x002D4808;
+    private const uint FSCTL_LOCK_VOLUME = 0x00090018;
+    private const uint FSCTL_DISMOUNT_VOLUME = 0x00090020;
     private const uint DIGCF_PRESENT = 0x02;
     private const uint DIGCF_DEVICEINTERFACE = 0x10;
+    private const uint GENERIC_READ = 0x80000000;
+
+    // Sends SCSI EJECT to the device, after locking and dismounting the
+    // volume. CM_Request_Device_Eject (RequestEject below) cleanly detaches
+    // the volume from Windows but doesn't tell the device to exit USBMS --
+    // on Kobos that means the device's screen stays on "Connected" until
+    // the cable is physically yanked. SCSI EJECT is what kicks Nickel's
+    // USBMS handler out of USBMS mode.
+    //
+    // Returns true on EJECT_MEDIA success. Lock/dismount failures are
+    // ignored (not all volumes need them; we just want EJECT_MEDIA to fire).
+    public static bool ScsiEject(string driveLetter, out string status) {
+        status = "";
+        IntPtr h = CreateFile(@"\\.\" + driveLetter, GENERIC_READ, 0x3,
+            IntPtr.Zero, 3, 0, IntPtr.Zero);
+        if (h == new IntPtr(-1)) {
+            status = "CreateFile(volume) win32err=" + Marshal.GetLastWin32Error();
+            return false;
+        }
+        try {
+            uint br;
+            DeviceIoControl(h, FSCTL_LOCK_VOLUME,
+                IntPtr.Zero, 0, IntPtr.Zero, 0, out br, IntPtr.Zero);
+            DeviceIoControl(h, FSCTL_DISMOUNT_VOLUME,
+                IntPtr.Zero, 0, IntPtr.Zero, 0, out br, IntPtr.Zero);
+            if (DeviceIoControl(h, IOCTL_STORAGE_EJECT_MEDIA,
+                    IntPtr.Zero, 0, IntPtr.Zero, 0, out br, IntPtr.Zero)) {
+                return true;
+            }
+            status = "IOCTL_STORAGE_EJECT_MEDIA win32err="
+                + Marshal.GetLastWin32Error();
+            return false;
+        } finally {
+            CloseHandle(h);
+        }
+    }
 
     public static int RequestEject(string driveLetter, out string status) {
         status = "";
@@ -310,13 +349,29 @@ function Flush-Drive($driveLetter) {
 }
 
 function Eject-Device($driveLetter) {
-    # Programmatic device-tree eject (CM_Request_Device_Eject). Returns
-    # $true if the device was ejected; $false if we couldn't (caller falls
-    # back to Eject-Drive's volume-level dismount).
+    # Two-step programmatic eject:
+    #   1. ScsiEject: locks/dismounts the volume and sends SCSI EJECT to the
+    #      device, telling Nickel's USBMS handler to exit USBMS mode.
+    #   2. RequestEject: CM_Request_Device_Eject, walks the device tree to
+    #      the USB parent and detaches it from Windows.
+    # Returns $true if RequestEject succeeded; $false if we couldn't (caller
+    # falls back to Eject-Drive's volume-level dismount).
     Initialize-EjectType
     if (-not ('VolumeEjector' -as [type])) {
         Write-Log 'WARN' 'VolumeEjector wrapper unavailable; skipping device-tree eject.'
         return $false
+    }
+    try {
+        $scsiStatus = ''
+        $scsiOk = [VolumeEjector]::ScsiEject($driveLetter, [ref]$scsiStatus)
+        if ($scsiOk) {
+            Write-Log 'INFO' "Sent IOCTL_STORAGE_EJECT_MEDIA to $driveLetter"
+        } else {
+            Write-Log 'WARN' "ScsiEject for $driveLetter failed ($scsiStatus); continuing"
+        }
+    }
+    catch {
+        Write-Log 'WARN' "ScsiEject exception for $driveLetter`: $($_.Exception.Message)"
     }
     try {
         $status = ''
