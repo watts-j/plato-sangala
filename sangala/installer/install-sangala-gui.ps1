@@ -59,6 +59,198 @@ function Initialize-FlushType {
     }
 }
 
+# Win32 P/Invoke: programmatic device eject via SetupAPI + Cfgmgr32.
+# This is what "Safely Remove Hardware" does. The earlier Win32_Volume
+# cooperative dismount returns success but only releases the volume from
+# the file-system stack -- the USB device is still attached, and the
+# device-side flash controller may not have flushed its internal write
+# cache. fsck.fat at next boot then sees the dirty bit and truncates
+# files (the v2.46 install on a Clara BW silently corrupted
+# dictionary.dict.dz from 32 MB to 14 MB this way). CM_Request_Device_Eject
+# issues a real device eject without going through the Shell verb whose
+# "drive in use" Continue dialog bricked v2.39.
+$ejectType = @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class VolumeEjector {
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr CreateFile(string fileName, uint desiredAccess, uint shareMode,
+        IntPtr securityAttributes, uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(IntPtr hDevice, uint ioControlCode,
+        IntPtr inBuffer, uint inBufferSize, IntPtr outBuffer, uint outBufferSize,
+        out uint bytesReturned, IntPtr overlapped);
+
+    [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr SetupDiGetClassDevs(ref Guid classGuid, IntPtr enumerator,
+        IntPtr hwndParent, uint flags);
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiEnumDeviceInterfaces(IntPtr deviceInfoSet,
+        IntPtr deviceInfoData, ref Guid interfaceClassGuid, uint memberIndex,
+        ref SP_DID deviceInterfaceData);
+    [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr deviceInfoSet,
+        ref SP_DID deviceInterfaceData, IntPtr deviceInterfaceDetailData,
+        uint deviceInterfaceDetailDataSize, out uint requiredSize, ref SP_DEVINFO devInfo);
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiDestroyDeviceInfoList(IntPtr deviceInfoSet);
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern uint CM_Get_Parent(out uint parentDevInst, uint devInst, uint flags);
+    [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern uint CM_Request_Device_Eject(uint devInst, out int vetoType,
+        StringBuilder vetoName, uint nameLength, uint flags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SP_DID {
+        public uint cbSize;
+        public Guid InterfaceClassGuid;
+        public uint Flags;
+        public IntPtr Reserved;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SP_DEVINFO {
+        public uint cbSize;
+        public Guid ClassGuid;
+        public uint DevInst;
+        public IntPtr Reserved;
+    }
+
+    private static readonly Guid GUID_DEVINTERFACE_DISK =
+        new Guid("53F56307-B6BF-11D0-94F2-00A0C91EFB8B");
+    private const uint IOCTL_STORAGE_GET_DEVICE_NUMBER = 0x002D1080;
+    private const uint DIGCF_PRESENT = 0x02;
+    private const uint DIGCF_DEVICEINTERFACE = 0x10;
+
+    public static int RequestEject(string driveLetter, out string status) {
+        status = "";
+        int targetNum;
+
+        IntPtr volH = CreateFile(@"\\.\" + driveLetter, 0, 0x3,
+            IntPtr.Zero, 3, 0, IntPtr.Zero);
+        if (volH == new IntPtr(-1)) {
+            status = "CreateFile(volume) win32err=" + Marshal.GetLastWin32Error();
+            return -1;
+        }
+        try {
+            int[] sdn = new int[3];
+            IntPtr buf = Marshal.AllocHGlobal(12);
+            try {
+                uint br;
+                if (!DeviceIoControl(volH, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+                        IntPtr.Zero, 0, buf, 12, out br, IntPtr.Zero)) {
+                    status = "IOCTL_STORAGE_GET_DEVICE_NUMBER win32err="
+                        + Marshal.GetLastWin32Error();
+                    return -1;
+                }
+                Marshal.Copy(buf, sdn, 0, 3);
+                targetNum = sdn[1];
+            } finally {
+                Marshal.FreeHGlobal(buf);
+            }
+        } finally {
+            CloseHandle(volH);
+        }
+
+        Guid g = GUID_DEVINTERFACE_DISK;
+        IntPtr set = SetupDiGetClassDevs(ref g, IntPtr.Zero, IntPtr.Zero,
+            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+        if (set == new IntPtr(-1)) {
+            status = "SetupDiGetClassDevs win32err=" + Marshal.GetLastWin32Error();
+            return -2;
+        }
+        try {
+            for (uint i = 0; ; i++) {
+                SP_DID did = new SP_DID();
+                did.cbSize = (uint)Marshal.SizeOf(typeof(SP_DID));
+                if (!SetupDiEnumDeviceInterfaces(set, IntPtr.Zero, ref g, i, ref did))
+                    break;
+
+                uint required = 0;
+                SP_DEVINFO devInfo = new SP_DEVINFO();
+                devInfo.cbSize = (uint)Marshal.SizeOf(typeof(SP_DEVINFO));
+                SetupDiGetDeviceInterfaceDetail(set, ref did, IntPtr.Zero, 0,
+                    out required, ref devInfo);
+                if (required == 0) continue;
+
+                IntPtr detail = Marshal.AllocHGlobal((int)required);
+                try {
+                    Marshal.WriteInt32(detail, IntPtr.Size == 8 ? 8 : 6);
+                    if (!SetupDiGetDeviceInterfaceDetail(set, ref did, detail, required,
+                            out required, ref devInfo)) continue;
+
+                    string devicePath = Marshal.PtrToStringAuto(
+                        new IntPtr(detail.ToInt64() + 4));
+                    if (string.IsNullOrEmpty(devicePath)) continue;
+
+                    IntPtr diskH = CreateFile(devicePath, 0, 0x3,
+                        IntPtr.Zero, 3, 0, IntPtr.Zero);
+                    if (diskH == new IntPtr(-1)) continue;
+
+                    int diskNum = -1;
+                    try {
+                        int[] sdn2 = new int[3];
+                        IntPtr buf2 = Marshal.AllocHGlobal(12);
+                        try {
+                            uint br;
+                            if (DeviceIoControl(diskH, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+                                    IntPtr.Zero, 0, buf2, 12, out br, IntPtr.Zero)) {
+                                Marshal.Copy(buf2, sdn2, 0, 3);
+                                diskNum = sdn2[1];
+                            }
+                        } finally {
+                            Marshal.FreeHGlobal(buf2);
+                        }
+                    } finally {
+                        CloseHandle(diskH);
+                    }
+
+                    if (diskNum != targetNum) continue;
+
+                    uint parent;
+                    uint cr = CM_Get_Parent(out parent, devInfo.DevInst, 0);
+                    if (cr != 0) {
+                        status = "CM_Get_Parent cr=" + cr;
+                        return -3;
+                    }
+
+                    int veto;
+                    StringBuilder vname = new StringBuilder(260);
+                    uint result = CM_Request_Device_Eject(parent, out veto,
+                        vname, (uint)vname.Capacity, 0);
+                    if (result == 0 && veto == 0) {
+                        status = "ejected";
+                        return 0;
+                    }
+                    status = "CM_Request_Device_Eject cr=" + result
+                        + " veto=" + veto + " name=" + vname.ToString();
+                    return result == 0 ? (1000 + veto) : (int)result;
+                } finally {
+                    Marshal.FreeHGlobal(detail);
+                }
+            }
+            status = "no disk in device tree matches drive " + driveLetter;
+            return -2;
+        } finally {
+            SetupDiDestroyDeviceInfoList(set);
+        }
+    }
+}
+"@
+function Initialize-EjectType {
+    if (-not ('VolumeEjector' -as [type])) {
+        try {
+            Add-Type -TypeDefinition $script:ejectType -ErrorAction Stop
+        }
+        catch {
+            Write-Log 'WARN' "Could not compile VolumeEjector wrapper: $($_.Exception.Message)"
+        }
+    }
+}
+
 # --- Logging --------------------------------------------------------------
 
 function Write-Log {
@@ -117,13 +309,38 @@ function Flush-Drive($driveLetter) {
     return $false
 }
 
+function Eject-Device($driveLetter) {
+    # Programmatic device-tree eject (CM_Request_Device_Eject). Returns
+    # $true if the device was ejected; $false if we couldn't (caller falls
+    # back to Eject-Drive's volume-level dismount).
+    Initialize-EjectType
+    if (-not ('VolumeEjector' -as [type])) {
+        Write-Log 'WARN' 'VolumeEjector wrapper unavailable; skipping device-tree eject.'
+        return $false
+    }
+    try {
+        $status = ''
+        $rc = [VolumeEjector]::RequestEject($driveLetter, [ref]$status)
+        if ($rc -eq 0) {
+            Write-Log 'INFO' "Ejected $driveLetter via CM_Request_Device_Eject"
+            return $true
+        }
+        Write-Log 'WARN' "CM_Request_Device_Eject for $driveLetter rc=$rc ($status)"
+    }
+    catch {
+        Write-Log 'WARN' "Eject-Device exception for $driveLetter`: $($_.Exception.Message)"
+    }
+    return $false
+}
+
 function Eject-Drive($driveLetter) {
-    # Cooperative dismount first; if that fails, force-dismount. Force is safe
-    # here because Flush-Drive already ran (writes are durable on disk), so
-    # the only thing force closes is stale read handles. We deliberately do
-    # NOT use Shell.Application.InvokeVerb("Eject"), because that path shows
-    # Windows' "drive in use" dialog whose Continue button forcibly dismounts
-    # and corrupts in-flight writes (factory-reset hazard).
+    # Fallback path: cooperative volume dismount, then force-dismount.
+    # Force is safe here because Flush-Drive already ran (writes are
+    # durable on disk), so the only thing force closes is stale read
+    # handles. We deliberately do NOT use Shell.Application.InvokeVerb("Eject"),
+    # because that path shows Windows' "drive in use" dialog whose
+    # Continue button forcibly dismounts and corrupts in-flight writes
+    # (factory-reset hazard, bricked v2.39's test device).
     try {
         $vol = Get-WmiObject -Class Win32_Volume | Where-Object { $_.DriveLetter -eq $driveLetter }
         if ($vol) {
@@ -580,7 +797,12 @@ function Start-Disconnect($onSuccess) {
     Flush-Drive $script:S.Drive | Out-Null
     Start-Sleep -Seconds 1
 
-    Eject-Drive $script:S.Drive
+    # Primary path: device-tree eject (Safely Remove Hardware equivalent).
+    # Falls back to volume-level dismount if the device-tree call fails.
+    if (-not (Eject-Device $script:S.Drive)) {
+        Write-Log 'INFO' "Falling back to volume-level dismount for $($script:S.Drive)"
+        Eject-Drive $script:S.Drive
+    }
 
     $script:timer.Stop()
     $script:timer.Remove_Tick({})
