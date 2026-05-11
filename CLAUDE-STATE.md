@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-05-08
+Last updated: 2026-05-08 (after v2.48 ship + housekeeping)
 
 ## Working Conventions (read first)
 
@@ -256,27 +256,33 @@ Menu (top bar — always shows "Menu" regardless of active library)
 - Sangala Reader Initiative (About/)
 - Newsletter (Fall 2025) - REACH for Uganda (REACH for Uganda Newsletters/)
 
-## Session-End Handoff (2026-05-08, after v2.48 device test)
+## Session-End Handoff (2026-05-08, after v2.48 ship + housekeeping)
 
-v2.48 verified end-to-end on factory-reset Clara BW. All three v2.48 fixes did what they were supposed to:
+**v2.48 is shipped stable.** End-to-end install verified on factory-reset Clara BW; the three v2.48 fixes did what they were supposed to (SCSI EJECT removes cable-yank requirement, `set -e` silences the busybox `trap: ERR: invalid signal specification` noise, auto-reload dictionaries works once conversion finishes).
 
-- **SCSI EJECT works** — `Sent IOCTL_STORAGE_EJECT_MEDIA to F:` and `Ejected F: via CM_Request_Device_Eject` both logged on each eject; Kobo exits USBMS without cable yank.
-- **`set -e` works** — `dictionary.log` no longer has `trap: ERR: invalid signal specification` noise.
-- **Auto-reload dictionaries works** — first lookup after install picks up the just-finished conversion automatically *if the user waits for conversion to finish* (~1–2 minutes after Plato launches). Impatient users still need to hit "Reload Dictionaries" manually because lookups before conversion completes will report empty.
+GitHub Releases housekeeping is complete:
+- v2.48's `install-sangala.zip` re-uploaded with CLI script only (the GUI script was in the original CI-built zip; user replaced it manually via `gh release upload --clobber`).
+- v2.48 flipped from pre-release to "Latest" on GitHub.
+- v2.45 and v2.46 marked broken (DO NOT INSTALL warning prepended to release bodies via `mark-broken.ps1`). Both remain pre-releases.
 
-A Kobo-side oddity surfaced and is **not in our scope to fix**: on the post-Phase-1 reboot, the Clara BW shows three loading dots without the expected "Updating" text, then re-enters USBMS, shows a "power too low" warning even when fully charged, applies the update anyway, reboots once more, and *then* shows the proper "Updating" screen before launching Plato. The install completes correctly despite this. Likely a firmware quirk — possibly a Kobo OTA firmware update interleaving with our KoboRoot.tgz, or a battery-driver-not-ready issue right after factory reset.
+Branch `claude/customize-plato-ui-1Edbm` tip: `84fe4df`. Latest tag: `v2.48-sangala` (verify with `git ls-remote --tags origin | grep sangala | sort -V | tail`).
 
-v2.48 is the **current stable**. CLI is the only supported install path; the GUI installer is in the repo but not bundled in `install-sangala.zip` (workflow change in this commit) until it has been independently verified on device.
+### Known device-side oddity (not in our scope to fix)
 
-What's outstanding:
-- v2.45 and v2.46 should be marked broken or deleted on GitHub Releases (eject corruption regression). User to do this via web UI or `gh release edit` script.
-- v2.48 release was originally built and uploaded with the GUI in `install-sangala.zip`. After this workflow change is merged, the user should re-upload a CLI-only zip to the v2.48 release on GitHub before promoting it from pre-release to "Latest".
-- GUI installer parity testing — open question whether to invest in verifying it on device or remove it from the repo entirely. Keeping it pending verification.
+On factory-reset Clara BW, the post-Phase-1 reboot shows three loading dots without the expected "Updating" text, then re-enters USBMS, shows a "power too low" warning even when fully charged, applies the update anyway, reboots once more, and *then* shows the proper "Updating" screen before launching Plato. Install completes correctly despite this. Likely a Kobo firmware quirk — possibly an OTA firmware update interleaving with our KoboRoot.tgz, or a battery-driver-not-ready issue right after factory reset. Worth documenting but not worth chasing unless it starts causing actual install failures.
 
-Risks to watch for in future device tests:
-- **`IOCTL_STORAGE_EJECT_MEDIA` "drive in use" failures.** If the host has any stale handle on the volume (Search Indexer, antivirus, third-party file manager), the IOCTL may fail. The path swallows the failure (logs WARN, continues to `CM_Request_Device_Eject`), but the cable-yank workaround would re-emerge. Lock+Dismount in the same C# function should normally close held handles.
-- **PS 5.1 parser regressions** when editing the `$ejectType` here-string. Run `[System.Management.Automation.Language.Parser]::ParseFile` on both installer scripts from PS 5.1 before pushing any tag.
+### Open questions for future sessions
+
+1. **GUI installer verification.** `install-sangala-gui.ps1` mirrors the CLI's logic but has never been driven on device. Currently in the repo but **excluded from `install-sangala.zip`** (workflow change in `84fe4df`). Options: (a) verify it on factory-reset Clara BW and re-enable in the zip, (b) remove it from the repo entirely if there's no appetite to maintain a second UI. The CLI works well enough that there may be no real need for the GUI.
+2. **Single-package vs two-package install layout.** The two-package layout exists so subsequent updates don't re-trigger Nickel's "updating" reboot (`KoboRoot.tgz` ships only in `-install.tar.gz`). The friction it creates on fresh installs (two ejects, manual Connect USB between them, conversion gets killed mid-run by Phase 2 USB-connect, recovery cycles) might be worth collapsing back to single-package if the maintenance cadence is low. Worth deciding after a few real users run installs.
+3. **Reduce first-install boot time by deprioritizing background conversion.** Conversion's disk I/O contends with Plato's startup reads on Clara BW's slow flash. Wrap the backgrounded call with `nice -n 19` and an initial `sleep 30` so Plato has uncontended I/O during startup. Expected savings: 30–60 s. Still listed in Long-term TODO.
+
+### Risks to watch for in future installer work
+
+- **`IOCTL_STORAGE_EJECT_MEDIA` "drive in use" failures.** If the host has any stale handle on the volume (Search Indexer, antivirus, third-party file manager), the IOCTL may fail. The path swallows the failure (logs WARN, continues to `CM_Request_Device_Eject`), but the cable-yank workaround would re-emerge. Lock+Dismount in the same C# function should normally close held handles, but it's not bulletproof.
+- **PS 5.1 parser regressions** when editing the `$ejectType` here-string. Run `[System.Management.Automation.Language.Parser]::ParseFile` on both installer scripts from PS 5.1 before pushing any tag. The here-string is ~190 lines of inline C# and has tripped parse cascades before.
 - **Tag bookkeeping.** Always `git fetch origin --tags` first, then `mcp__github__list_tags` (or `git ls-remote --tags origin | sort -V`). Single-quote refs with `{}` in PowerShell.
+- **`gh` CLI is now installed** on the user's Windows machine. The user also has `strip-release-sections.ps1` and `mark-broken.ps1` on `C:\Users\jbw3r\Desktop\Plato\` (or `Install\`) for editing past release bodies. Reuse these patterns rather than re-spawning new ad-hoc scripts.
 
 ## Single-package vs two-package (open question)
 
