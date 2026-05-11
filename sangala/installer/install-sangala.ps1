@@ -7,10 +7,10 @@
 # -InstallPath / -UpdatePath if you need a specific folder.
 #
 # On a fresh install, prompts for the reader's name and patches it into
-# the package's Settings.toml so the home screen welcome line reads
-# "Welcome, <name>!". On an update, the existing on-device name is
-# preserved (read from the device's Settings.toml and patched into the
-# update package before copying), so updates don't revert the name.
+# the package's Settings.toml so the home screen displays the entered
+# name. On an update, the existing on-device name is preserved (read
+# from the device's Settings.toml and patched into the update package
+# before copying), so updates don't revert the name.
 #
 # Errors and notable events are appended to install-sangala.log next to
 # the script.
