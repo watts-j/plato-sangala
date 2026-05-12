@@ -721,7 +721,7 @@ function Show-DetectedUpdate {
 
 function Show-NamePrompt {
     Hide-AllControls
-    $script:statusLabel.Text = "The name will appear on the device's home screen, e.g. `"Jo`"."
+    $script:statusLabel.Text = "The name will appear on the device's home screen, e.g. `"John Smith`"."
     $script:nameLabel.Visible = $true
     $script:nameInput.Visible = $true
     $script:nameInput.Text = ''
