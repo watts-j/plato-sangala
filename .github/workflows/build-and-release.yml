@@ -128,10 +128,11 @@ jobs:
         run: |
           # Wrap the CLI installer in a .zip so it's a normal downloadable
           # asset. GitHub's release UI sometimes hides bare .ps1 attachments.
-          # The GUI installer (install-sangala-gui.ps1) lives in the repo but
-          # is intentionally NOT shipped in releases until it has been
-          # verified on a factory-reset Clara BW. The CLI is the only
-          # supported install path for now.
+          # This zip is REPLACED by the gui-exe job below, which produces
+          # the final install-sangala.zip with both install-sangala.ps1 and
+          # install-sangala-gui.exe (PS2EXE-compiled from the GUI .ps1).
+          # Built here so that the .ps1-only fallback exists in case the
+          # gui-exe job ever fails -- users still get a working install path.
           cp sangala/installer/install-sangala.ps1 install-sangala.ps1
           zip install-sangala.zip install-sangala.ps1
           echo "All release files:"
@@ -188,3 +189,54 @@ jobs:
           # Tag releases ship as pre-release by default; manually promote to
           # stable on the GitHub Releases page once a device test passes.
           prerelease: true
+
+  gui-exe:
+    # PS2EXE compiles install-sangala-gui.ps1 into install-sangala-gui.exe.
+    # Runs on Windows because the GUI script Add-Type's System.Windows.Forms
+    # at runtime, and PS2EXE's compile step pulls in framework references
+    # that aren't available on Linux PSCore. Outputs a portable Windows
+    # .exe that hosts PowerShell internally -- no ExecutionPolicy or
+    # PowerShell-version awareness required from end users.
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine release tag
+        id: tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "tag=${{ github.event.inputs.release_tag }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            "tag=${{ github.ref_name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Build GUI installer .exe via PS2EXE
+        shell: pwsh
+        run: |
+          Install-Module -Name ps2exe -Force -Scope CurrentUser -SkipPublisherCheck
+          Invoke-ps2exe `
+            -InputFile sangala\installer\install-sangala-gui.ps1 `
+            -OutputFile install-sangala-gui.exe `
+            -NoConsole `
+            -Title 'Sangala eReader Installer'
+          if (-not (Test-Path install-sangala-gui.exe)) {
+            throw 'PS2EXE produced no output -- aborting.'
+          }
+          Get-Item install-sangala-gui.exe | Format-List Name, Length, LastWriteTime
+
+      - name: Repackage install-sangala.zip with .ps1 and .exe
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.tag.outputs.tag }}"
+          Copy-Item sangala\installer\install-sangala.ps1 install-sangala.ps1
+          # Build the final zip from scratch (both files at archive root),
+          # then --clobber the build job's .ps1-only zip in the release.
+          Compress-Archive `
+            -Path install-sangala.ps1, install-sangala-gui.exe `
+            -DestinationPath install-sangala.zip -Force
+          gh release upload $tag install-sangala.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
