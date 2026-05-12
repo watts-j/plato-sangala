@@ -536,6 +536,8 @@ $script:S = @{
     Bg = $null
     ReconnectStart = $null
     LastError = $null
+    Mode = 'idle'
+    CopyOnSuccess = $null
 }
 
 # --- Form / controls ------------------------------------------------------
@@ -608,8 +610,22 @@ $centerButton.Visible = $false
 $form.Controls.Add($centerButton)
 
 # Timer used both for copy progress polling and reconnect-wait polling.
+# One handler is attached for the lifetime of the form; it dispatches by
+# $script:S.Mode to the appropriate per-phase tick function. The earlier
+# pattern -- Add_Tick a fresh scriptblock per phase, then Remove_Tick({}) at
+# the next transition -- silently accumulated handlers (Remove_Tick passes
+# a fresh empty scriptblock that doesn't match the registered delegate),
+# so a leftover Phase 1 handler fired during Phase 2 and re-triggered the
+# post-install eject/reconnect dance instead of letting Show-Done run.
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 500
+$timer.Add_Tick({
+    switch ($script:S.Mode) {
+        'copy'       { On-CopyTick }
+        'disconnect' { On-DisconnectTick }
+        'reconnect'  { On-ReconnectTick }
+    }
+})
 
 # --- Helpers --------------------------------------------------------------
 
@@ -763,9 +779,8 @@ function Start-FreshInstallStep1 {
 
     Write-Log 'INFO' 'Starting copy of install package'
     $script:S.Bg = Start-BackgroundCopy $script:S.InstallPath $script:S.Drive
-    $script:timer.Stop()
-    $script:timer.Remove_Tick({})
-    $script:timer.Add_Tick({ On-CopyTick { After-InstallStep1 } })
+    $script:S.CopyOnSuccess = { After-InstallStep1 }
+    $script:S.Mode = 'copy'
     $script:timer.Start()
 }
 
@@ -795,13 +810,12 @@ function Start-UpdateCopy($onSuccess) {
 
     Write-Log 'INFO' 'Starting copy of update package'
     $script:S.Bg = Start-BackgroundCopy $script:S.UpdatePath $script:S.Drive
-    $script:timer.Stop()
-    $script:timer.Remove_Tick({})
-    $script:timer.Add_Tick({ On-CopyTick $onSuccess })
+    $script:S.CopyOnSuccess = $onSuccess
+    $script:S.Mode = 'copy'
     $script:timer.Start()
 }
 
-function On-CopyTick($onSuccess) {
+function On-CopyTick {
     $bg = $script:S.Bg
     if (-not $bg) { return }
     $st = $bg.State
@@ -814,13 +828,15 @@ function On-CopyTick($onSuccess) {
     }
 
     if ($st.Status -eq 'Done') {
+        $script:S.Mode = 'idle'
         $script:timer.Stop()
         Stop-BackgroundCopy $bg
         $script:S.Bg = $null
         Write-Log 'INFO' 'Copy complete'
-        & $onSuccess
+        & $script:S.CopyOnSuccess
     }
     elseif ($st.Status -eq 'Error') {
+        $script:S.Mode = 'idle'
         $script:timer.Stop()
         $err = $st.Error
         Stop-BackgroundCopy $bg
@@ -859,14 +875,13 @@ function Start-Disconnect($onSuccess) {
         Eject-Drive $script:S.Drive
     }
 
-    $script:timer.Stop()
-    $script:timer.Remove_Tick({})
-    $script:timer.Add_Tick({ On-DisconnectTick })
+    $script:S.Mode = 'disconnect'
     $script:timer.Start()
 }
 
 function On-DisconnectTick {
     if (Test-DriveGone $script:S.Drive) {
+        $script:S.Mode = 'idle'
         $script:timer.Stop()
         Write-Log 'INFO' "Device disconnected at $($script:S.Drive)"
         & $script:S.DisconnectOnSuccess
@@ -874,9 +889,29 @@ function On-DisconnectTick {
     }
     $elapsed = (Get-Date) - $script:S.DisconnectStart
     if ($elapsed.TotalSeconds -ge 60) {
+        $script:S.Mode = 'idle'
         $script:timer.Stop()
         Write-Log 'WARN' "Device did not disconnect within 60 seconds; prompting user"
         Show-DisconnectError
+    }
+}
+
+function On-ReconnectTick {
+    $drive = Find-Kobo
+    if ($drive) {
+        $script:S.Mode = 'idle'
+        $script:timer.Stop()
+        $script:S.Drive = $drive
+        Write-Log 'INFO' "Device reconnected at $drive"
+        Show-DetectedUpdate
+        return
+    }
+    $elapsed = (Get-Date) - $script:S.ReconnectStart
+    if ($elapsed.TotalSeconds -ge $script:ReconnectTimeoutSeconds) {
+        $script:S.Mode = 'idle'
+        $script:timer.Stop()
+        Write-Log 'ERROR' "Device did not reconnect within $script:ReconnectTimeoutSeconds seconds"
+        Show-ReconnectError
     }
 }
 
@@ -896,24 +931,7 @@ function Show-WaitingForReconnect {
     Set-SecondaryButton "Cancel" { $script:form.Close() }
 
     Write-Log 'INFO' 'Waiting for device to reconnect'
-    $script:timer.Stop()
-    $script:timer.Remove_Tick({})
-    $script:timer.Add_Tick({
-        $drive = Find-Kobo
-        if ($drive) {
-            $script:timer.Stop()
-            $script:S.Drive = $drive
-            Write-Log 'INFO' "Device reconnected at $drive"
-            Show-DetectedUpdate
-            return
-        }
-        $elapsed = (Get-Date) - $script:S.ReconnectStart
-        if ($elapsed.TotalSeconds -ge $script:ReconnectTimeoutSeconds) {
-            $script:timer.Stop()
-            Write-Log 'ERROR' "Device did not reconnect within $script:ReconnectTimeoutSeconds seconds"
-            Show-ReconnectError
-        }
-    })
+    $script:S.Mode = 'reconnect'
     $script:timer.Start()
 }
 
