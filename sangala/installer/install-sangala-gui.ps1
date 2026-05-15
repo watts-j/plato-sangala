@@ -13,7 +13,23 @@ Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
-$ScriptDir = $PSScriptRoot
+# Resolve the script's directory. Under direct .ps1 invocation
+# $PSScriptRoot is set by PowerShell's script loader; under a
+# PS2EXE-wrapped .exe it's empty (the wrapper hosts the script
+# in-memory rather than loading it from disk). Fall back to the
+# running executable's directory in that case so Join-Path,
+# Find-LatestPackage, and Write-Log don't blow up with "Cannot bind
+# argument to parameter 'Path' because it is an empty string".
+$ScriptDir = if ($PSScriptRoot) {
+    $PSScriptRoot
+} else {
+    $exePath = [Environment]::GetCommandLineArgs()[0]
+    if ($exePath) {
+        Split-Path -Parent -Path $exePath
+    } else {
+        (Get-Location).Path
+    }
+}
 $LogPath = Join-Path $ScriptDir 'install-sangala.log'
 $ReconnectTimeoutSeconds = 300
 
