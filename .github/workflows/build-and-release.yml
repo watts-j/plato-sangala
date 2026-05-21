@@ -91,9 +91,6 @@ jobs:
           mkdir -p shared-content/.adds/plato/resources
           cp sangala/kobo-assets/plato-resources/home.png shared-content/.adds/plato/resources/home.png
 
-          # Dictionary (StarDict format, converted on first use)
-          cp sangala/dictionaries/* shared-content/.adds/plato/dictionaries/
-
           # Kobo screensaver and config (KoboRoot.tgz added to install package only)
           mkdir -p shared-content/.kobo
           cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
@@ -120,6 +117,13 @@ jobs:
           TAG="${{ steps.tag.outputs.tag }}"
           INSTALL="plato-sangala-${TAG}-install"
           cp -R shared-content "${INSTALL}"
+          # Dictionary (StarDict source, converted on-device on first boot).
+          # Install-only: shipping these in the update package overwrites the
+          # on-device .dict.dz produced by convert-dictionary.sh while leaving
+          # the matching .index untouched -- lookups then return wrong-offset
+          # fragments with raw StarDict markers leaking through (see Lesson #31).
+          mkdir -p "${INSTALL}/.adds/plato/dictionaries"
+          cp sangala/dictionaries/* "${INSTALL}/.adds/plato/dictionaries/"
           # Add KoboRoot.tgz for first-time system setup
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
@@ -166,8 +170,10 @@ jobs:
             setup, Plato app, Settings, dictionaries, screensaver. No EPUBs.
             Triggers an "updating" screen and one automatic reboot.
 
-            **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
-            and the EPUB library. No system changes, no reboot.
+            **`-update.tar.gz`** — Content (~80MB). Plato app, Settings, and
+            the EPUB library. No system changes, no reboot. Dictionaries are
+            install-only so subsequent updates don't clobber the converted
+            on-device dictd files.
 
             ### Manual install
             1. Connect Kobo via USB.
