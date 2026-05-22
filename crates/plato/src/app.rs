@@ -950,11 +950,21 @@ pub fn run() -> Result<(), Error> {
                 let notif = Notification::new(msg, &tx, &mut rq, &mut context);
                 view.children_mut().push(Box::new(notif) as Box<dyn View>);
             },
-            Event::Select(EntryId::SetTimeHour(hour)) => {
+            Event::Select(EntryId::SetTimeHour(hour_12)) => {
+                // hour_12 is 1..=12 from the AM/PM clock menu. Map to 0..=23
+                // by preserving the current AM/PM half-day.
                 let now = plato_core::chrono::Local::now();
+                let current_hour_24 = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
+                let is_pm = current_hour_24 >= 12;
+                let hour_24 = match (hour_12, is_pm) {
+                    (12, false) => 0,
+                    (12, true)  => 12,
+                    (h, false)  => h,
+                    (h, true)   => h + 12,
+                };
                 let date_str = now.format("%Y-%m-%d").to_string();
                 let minute = now.format("%M").to_string();
-                let time_str = format!("{} {:02}:{}", date_str, hour, minute);
+                let time_str = format!("{} {:02}:{}", date_str, hour_24, minute);
                 std::process::Command::new("date")
                     .arg("-s")
                     .arg(&time_str)
@@ -971,6 +981,26 @@ pub fn run() -> Result<(), Error> {
                     .arg(&time_str)
                     .status()
                     .ok();
+            },
+            Event::Select(EntryId::SetTimeAmPm(want_pm)) => {
+                // Flip the half-day by adding/subtracting 12h, only if it
+                // actually changes things. Going AM->PM adds 12, PM->AM subtracts 12.
+                let now = plato_core::chrono::Local::now();
+                let current_hour_24 = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
+                let is_pm = current_hour_24 >= 12;
+                if is_pm == want_pm {
+                    // already in the requested half-day; nothing to do
+                } else {
+                    let new_hour = if want_pm { current_hour_24 + 12 } else { current_hour_24 - 12 };
+                    let date_str = now.format("%Y-%m-%d").to_string();
+                    let minute = now.format("%M").to_string();
+                    let time_str = format!("{} {:02}:{}", date_str, new_hour, minute);
+                    std::process::Command::new("date")
+                        .arg("-s")
+                        .arg(&time_str)
+                        .status()
+                        .ok();
+                }
             },
             Event::Select(EntryId::Reboot) => {
                 exit_status = ExitStatus::Reboot;

@@ -541,7 +541,7 @@ impl Default for Settings {
             button_scheme: ButtonScheme::Natural,
             auto_suspend: 30.0,
             auto_power_off: 3.0,
-            time_format: "%H:%M".to_string(),
+            time_format: "%-I:%M %p".to_string(),
             date_format: "%A, %B %-d, %Y".to_string(),
             intermissions: Intermissions {
                 suspend: PathBuf::from(LOGO_SPECIAL_PATH),

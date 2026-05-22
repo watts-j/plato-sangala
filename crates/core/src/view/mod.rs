@@ -578,6 +578,7 @@ pub enum EntryId {
     TakeScreenshot,
     SetTimeHour(u32),
     SetTimeMinute(u32),
+    SetTimeAmPm(bool),
     Reboot,
     PowerOff,
     ConnectUSB,

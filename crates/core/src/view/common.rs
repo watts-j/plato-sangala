@@ -135,13 +135,25 @@ pub fn toggle_clock_menu(view: &mut dyn View, rect: Rectangle, enable: Option<bo
             return;
         }
         let now = Local::now();
-        let current_hour = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
+        let current_hour_24 = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
         let current_minute = now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+        let current_is_pm = current_hour_24 >= 12;
+        // 12-hour-clock hour: 0 -> 12 AM, 1..=11 -> 1..=11 AM, 12 -> 12 PM, 13..=23 -> 1..=11 PM.
+        let current_hour_12 = match current_hour_24 {
+            0 => 12,
+            13..=23 => current_hour_24 - 12,
+            _ => current_hour_24,
+        };
 
-        let hours: Vec<EntryKind> = (0..24).map(|h| {
-            EntryKind::RadioButton(format!("{:02}", h),
+        let am_pm: Vec<EntryKind> = vec![
+            EntryKind::RadioButton("AM".to_string(), EntryId::SetTimeAmPm(false), !current_is_pm),
+            EntryKind::RadioButton("PM".to_string(), EntryId::SetTimeAmPm(true), current_is_pm),
+        ];
+
+        let hours: Vec<EntryKind> = (1..=12).map(|h| {
+            EntryKind::RadioButton(format!("{}", h),
                                    EntryId::SetTimeHour(h),
-                                   h == current_hour)
+                                   h == current_hour_12)
         }).collect();
 
         let minutes: Vec<EntryKind> = (0..60).step_by(5).map(|m| {
@@ -150,10 +162,8 @@ pub fn toggle_clock_menu(view: &mut dyn View, rect: Rectangle, enable: Option<bo
                                    m == current_minute / 5 * 5)
         }).collect();
 
-        let text = now.format(&context.settings.date_format).to_string();
         let entries = vec![
-            EntryKind::Message(text, None),
-            EntryKind::Separator,
+            EntryKind::SubMenu("AM / PM".to_string(), am_pm),
             EntryKind::SubMenu("Set Hour".to_string(), hours),
             EntryKind::SubMenu("Set Minute".to_string(), minutes),
         ];
