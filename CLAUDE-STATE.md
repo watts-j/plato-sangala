@@ -55,10 +55,11 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.51-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes). Queued for v2.51, two changes on top of v2.50:
+**v2.51-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes). Queued for v2.51, three changes on top of v2.50:
 
 1. **Drop the GUI `.exe` from `install-sangala.zip`.** Releases ship the CLI `.ps1` only, like v2.48 did. The `gui-exe` job is renamed `gui-exe-parse-check` and no longer uploads to the release — it just verifies the GUI source still PS2EXE-compiles, so we catch regressions if we ever resume shipping it. Motivation: production devices installed via the GUI `.exe` have intermittently performed real factory resets (recovery → OOBE wizard); CLI-installed devices haven't. Root cause is not yet identified (see Lesson #32). The CLI `.ps1` itself has been frozen since v2.48, matching the user's "last known stable" mental model.
 2. **Remove "Enable WiFi" from the burger menu** (see Burger Menu section). One observed factory reset coincided with someone trying to connect to the internet; removing the WiFi path eliminates that vector.
+3. **Remove the clock from the top bar.** In `crates/core/src/view/top_bar.rs`, dropped the `Clock` child entirely (was index 2 of 6); title label now extends to the battery widget's left edge. Renumbered the remaining children (battery 3→2, frontlight 4→3, menu 5→4) and removed `update_clock_label`. `crates/core/src/view/clock.rs`, the `ClockTick` event, the `ClockMenu` ViewId, and the periodic ClockTick scheduler in `app.rs` are unchanged — harmless dead code, kept so the clock is one-line to re-add if needed.
 
 **v2.50-sangala** shipped (pre-release) on 2026-05-21, contains the dictionary-only-in-install-package fix (Lesson #31) — workflow change so `-update.tar.gz` no longer ships the StarDict source files. Artifact contents verified (update tarball has no `dictionary.{ifo,idx,dict.dz,syn}`; install tarball still has all four). On-device verification deferred pending resolution of the GUI factory-reset issue. The dictionary fix itself is a strict improvement and ships through into v2.51.
 
