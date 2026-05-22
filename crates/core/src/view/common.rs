@@ -79,10 +79,6 @@ pub fn toggle_main_menu(view: &mut dyn View, rect: Rectangle, enable: Option<boo
         let mut entries = vec![EntryKind::Command("System Info".to_string(),
                                                   EntryId::SystemInfo),
                                EntryKind::Separator,
-                               EntryKind::CheckBox("Enable WiFi".to_string(),
-                                                   EntryId::ToggleWifi,
-                                                   context.settings.wifi),
-                               EntryKind::Separator,
                                EntryKind::SubMenu("Applications".to_string(), apps),
                                EntryKind::Separator];
 
