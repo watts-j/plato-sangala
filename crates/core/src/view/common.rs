@@ -156,10 +156,16 @@ pub fn toggle_clock_menu(view: &mut dyn View, rect: Rectangle, enable: Option<bo
                                    h == current_hour_12)
         }).collect();
 
-        let minutes: Vec<EntryKind> = (0..60).step_by(5).map(|m| {
-            EntryKind::RadioButton(format!("{:02}", m),
-                                   EntryId::SetTimeMinute(m),
-                                   m == current_minute / 5 * 5)
+        // Split 0..60 into six buckets of ten so the user can pick any minute
+        // without overflowing the screen into a More submenu.
+        let minutes: Vec<EntryKind> = (0..6).map(|tens| {
+            let group: Vec<EntryKind> = (0..10).map(|ones| {
+                let m = tens * 10 + ones;
+                EntryKind::RadioButton(format!("{:02}", m),
+                                       EntryId::SetTimeMinute(m),
+                                       m == current_minute)
+            }).collect();
+            EntryKind::SubMenu(format!("{:02} - {:02}", tens * 10, tens * 10 + 9), group)
         }).collect();
 
         let entries = vec![
