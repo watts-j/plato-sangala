@@ -126,7 +126,9 @@ This shows every parse error in one pass instead of fixing one and rediscovering
 
 ## Device
 
-Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI. **Hardware buttons: power only.** No LIGHT button, no pinhole reset. Do not invent a button-combo factory-reset gesture from memory of other Kobos — earlier sessions repeatedly wrote "hold LIGHT during power-on" and were corrected. If you need the reset gesture for a recovery instruction, ask the user.
+Kobo Clara BW (model spaBW/spaBWTPV, model number 391), 1072x1448 @ 300 DPI. **Hardware buttons: power only.** No LIGHT button, no pinhole reset. Do not invent a button-combo factory-reset gesture from memory of other Kobos — earlier sessions repeatedly wrote "hold LIGHT during power-on" and were corrected. If you need the reset gesture for a recovery instruction, ask the user.
+
+**Reference test device firmware (2026-05-23):** `4.42.23291` (Linux kernel 4.9.77). Pulled from `.kobo/version` via USB. Format of that file: `SERIAL,KERNEL,FIRMWARE,KERNEL,KERNEL,UUID-ending-in-MODEL`. `4.42` is recent Kobo firmware — much newer than what Clara BW shipped with — so devices currently in the field have almost certainly been OTA-updated at some point. This matters because Kobo firmware updates can change Nickel's anti-tamper / boot-integrity behavior, and is one open hypothesis for why installs that worked in earlier eras (v2.24-v2.32) now factory-reset on these devices. Without a way to roll firmware back, we can't test older firmware directly.
 
 ## Architecture
 
