@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-05-23 (rolled branch back to v2.48 after v2.49-v2.53 were discarded; see branch note below)
+Last updated: 2026-05-23 (factory-reset investigation deepened: v2.47 also confirmed broken; v2.45/v2.46 binary is the only known-working configuration. See Session-End Handoff at bottom.)
 
 ## Working Conventions (read first)
 
@@ -18,7 +18,8 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.48-sangala** — Tip of `sangala-v2.48-base` (current working branch as of 2026-05-23) and the latest tag/published release on GitHub. Three follow-on fixes after v2.47's device test (2026-05-08) revealed remaining friction: (1) installer adds `IOCTL_STORAGE_EJECT_MEDIA` before `CM_Request_Device_Eject` so the Kobo exits USBMS automatically — without it, the host-side eject worked cleanly but the device's screen stayed on "Connected" until the user yanked the cable; (2) `convert-dictionary.sh` swaps `trap 'exit 1' ERR` (busybox doesn't recognize the `ERR` signal) for `set -e`, which busybox does support — silences `trap: ERR: invalid signal specification` log noise and gives us actual exit-on-error; (3) Plato's `query_to_content` auto-triggers `load_dictionaries()` if the map is empty at lookup time, so the first dictionary lookup after a fresh install no longer requires a manual "Reload Dictionaries" menu pick (the StarDict-to-dictd conversion finishes after Plato's startup-time `load_dictionaries()` already ran). Tags v2.49-v2.53 and their GitHub releases were deleted on 2026-05-23 (factory-reset bug investigation was not converging; rolled back to v2.48 as the working baseline). The 20 post-v2.48 commits are preserved on `claude/customize-plato-ui-1Edbm` if anything from that era is wanted back.
+- **v2.48.1-sangala** — Pre-release tagged 2026-05-23. v2.48 + 8 EPUBs added to `.STEM/Science/Biology/` (Plant Nutrition guide, Photosynthesis (overview/Grade 11/AP/deeper), Plant Transport, Pigment Chromatography Lab, Metabolic Connections). No code or installer changes from v2.48. **Confirmed broken**: the test device factory-reset on the first manual power-cycle after a clean install + real-use session. Same factory-reset bug as everything else in v2.47+. Released anyway because the EPUB additions are independently valuable; the factory-reset bug is not specific to this version.
+- **v2.48-sangala** — Tip of `sangala-v2.48-base` (current working branch as of 2026-05-23) and the latest stable-marked tag/published release on GitHub. Three follow-on fixes after v2.47's device test (2026-05-08): (1) installer adds `IOCTL_STORAGE_EJECT_MEDIA` before `CM_Request_Device_Eject`; (2) `convert-dictionary.sh` swaps `trap 'exit 1' ERR` for `set -e`; (3) Plato's `query_to_content` auto-triggers `load_dictionaries()` if empty. Tags v2.49-v2.53 and their GitHub releases were deleted on 2026-05-23 (factory-reset bug investigation was not converging; rolled back to v2.48 as the working baseline). The 20 post-v2.48 commits are preserved on `claude/customize-plato-ui-1Edbm` if anything from that era is wanted back. **Note (2026-05-23):** v2.48 was previously marked "verified stable" based on a single install. Today's investigation showed v2.47 (which has the same on-device script set and the same Plato binary as v2.45/v2.46) factory-resets on the first clean power-cycle, so v2.48's "stable" rating must be considered suspect — it was never multi-power-cycle tested. The factory-reset bug now appears to affect at least v2.47 and v2.48 lines.
 - **v2.47-sangala** — First v2.x build whose CLI installer doesn't corrupt FAT during eject. Three fixes after v2.46's device test failed: (a) installer uses `CM_Request_Device_Eject` (Safely-Remove-Hardware path) before falling back to volume dismount — confirmed working via `Ejected F: via CM_Request_Device_Eject` log lines and absence of `fsck.fat` corrections in `info.log`; (b) `convert-dictionary.sh` falls back to `cp` when `ln` fails on vfat — turned out to be defensive-only since busybox's missing `ERR` trap meant the original `ln` failure wasn't actually exiting the script (see v2.48); (c) conversion stdout/stderr captured to `/mnt/onboard/.adds/plato/dictionary.log` — confirmed working, gave first direct evidence of the recovery path engaging successfully. Successful end-to-end install verified on factory-reset Clara BW, with two caveats: (1) cable yank still required because no SCSI EJECT, and (2) "Reload Dictionaries" still required for the first lookup. Both fixed in v2.48.
 - **v2.46-sangala** — **Has two known regressions; do not redistribute.** (a) Installer eject path leaves FAT dirty, causing fsck-truncation of dict.dz and several EPUBs on next boot. (b) `convert-dictionary.sh`'s unconditional `ln` fails on vfat → conversion can't create backups even with intact sources (though see v2.47 note: the actual `ln` failure was tolerated because busybox's missing `ERR` trap silently skipped it). Identical commit (`6d0f08a`) to v2.45. Both should be removed or marked broken.
 - **v2.45-sangala** — Same broken commit as v2.46. Welcome label is now just the configured name (e.g., "Jo") rather than "Welcome, Jo!". `convert-dictionary.sh` was reworked to be crash-safe via hardlink backups (Option G), but the hardlink call breaks on vfat — see v2.47/v2.48 entries above.
@@ -54,7 +55,9 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**v2.48-sangala** (will ship as pre-release; promote manually on GitHub Releases after device test passes). Adds SCSI EJECT, replaces busybox-incompatible `trap ERR` with `set -e`, and auto-reloads dictionaries on first empty lookup — see Reference Versions.
+**Don't ship a new tag without addressing the factory-reset bug first.** v2.48 and v2.48.1 are tagged; both factory-reset on Clara BW. Next genuine fix should tag **v2.49-sangala** (the previous v2.49 was deleted on 2026-05-23, see Reference Versions). Do NOT reuse v2.48.x as a patch line — the bug is in the v2.48 baseline itself, not in additions on top.
+
+If a no-fix content-only update is wanted (e.g., more EPUBs added), it can ship as v2.48.2 with a release-note warning that the factory-reset bug is unresolved. But this just propagates the problem to more devices, so it's not recommended.
 
 **Tagging discipline:** before suggesting any next tag number, fetch tags and check `git ls-remote --tags origin | grep sangala | sort -V | tail` (or use `mcp__github__list_tags`). This session shipped a duplicate v2.46 tag because the assistant reasoned about tag positions from a misread `git rev-parse v2.X-sangala^{commit}` output (PowerShell ate the `{commit}` brace, the resulting `^` returned the parent commit, and the assistant treated that as the tag's commit). Always single-quote refs with `{}` in PowerShell: `'v2.X-sangala^{commit}'`.
 
@@ -104,7 +107,7 @@ This shows every parse error in one pass instead of fixing one and rediscovering
 
 ## Branch
 
-`claude/customize-plato-ui-1Edbm`
+`sangala-v2.48-base` (created 2026-05-23 from `v2.48-sangala` tag; rollback from the `claude/customize-plato-ui-1Edbm` branch that had carried v2.49-v2.53 work). Current tip = `70abdd5` + CLAUDE-STATE updates. The original branch with the discarded 20 commits is preserved at `claude/customize-plato-ui-1Edbm`.
 
 ## User Working Directory
 
@@ -281,11 +284,104 @@ After Phase 2 disconnect:
 
 If v2.48 device test passes, promote on GitHub Releases. v2.45 and v2.46 should be marked broken or deleted (see Reference Versions).
 
+**Update (2026-05-23):** v2.48 was device-tested and superficially passed — but Lesson #33's caveat applies: the test was a single install + boot, not multi-power-cycle. Promote-to-stable decision was made on insufficient evidence. The factory-reset bug surfaced on subsequent power-cycle testing later. Do NOT take this 2026-05-08 handoff's "promote v2.48" recommendation at face value.
+
 Risks to watch for:
 
 - **PS 5.1 parser regressions.** The `$ejectType` here-string grew with the new `ScsiEject` static method. Run `[System.Management.Automation.Language.Parser]::ParseFile` on both installer scripts from PS 5.1 before pushing the tag.
 - **`IOCTL_STORAGE_EJECT_MEDIA` "drive in use" failures.** If the host has any stale handle on the volume (Search Indexer, antivirus, third-party file manager), the IOCTL may fail with `ERROR_DRIVE_LOCKED` or similar. The path swallows the failure (logs WARN, continues to `CM_Request_Device_Eject`), but the cable yank workaround would re-emerge. Lock+Dismount in the same C# function should normally close held handles.
 - **Tag bookkeeping.** Always `git fetch origin --tags` first, then `mcp__github__list_tags` (or `git ls-remote --tags origin | sort -V`). Single-quote refs with `{}` in PowerShell.
+
+## Session-End Handoff (2026-05-23, factory-reset investigation continued)
+
+### Status
+
+The factory-reset bug is **active and unresolved**. The previous session (also 2026-05-23, captured at the bottom of the discarded `claude/customize-plato-ui-1Edbm` branch) left this bug open with the highest-priority untested hypothesis being "swap USB cable." That hypothesis was tested in subsequent installs and the user has confirmed multiple times the cable is good. This session ruled out additional candidates and narrowed the search.
+
+### Evidence summary
+
+**Stable device** (working long-term):
+- Plato binary SHA256: `398C698E75549253ECB98076E7D4C70332BF93D890C2F659BC34823C7FD863F7` — matches v2.45, v2.46, and v2.47 (all three released identical Plato binaries; no Rust changes between them)
+- `convert-dictionary.sh` SHA256: `01F85AE3A7EA705A441A31C47E55C400F55D0640B25C5F7906BEA5AEF243AE69` — matches v2.45 / v2.46 only (v2.47 differs because of the `cp` fallback addition)
+- Firmware: `N365594030688,4.9.77,4.42.23291,4.9.77,4.9.77,...0391` — model 391, kernel 4.9.77, firmware 4.42.23291
+- Stable for **2+ weeks with multiple reboots** in real-world use
+
+**Failing test device** (and per user report, multiple other failing devices across multiple USB ports and multiple host computers):
+- Firmware: `N365594030627,4.9.77,4.42.23291,...0391` — **identical firmware string** to stable device, only serial differs
+- Factory-resets on v2.47 / v2.48 / v2.48.1 / v2.49-v2.53 (range tested)
+- v2.48.1 factory-reset after ~3 clean power-cycles
+- v2.47 factory-reset on the FIRST clean manual power-cycle (after install + real-use session, clean shutdown via Plato burger menu, fully booted device on each cycle)
+
+### Hypotheses tested and ruled out this session
+
+| Hypothesis | Ruled out by |
+|---|---|
+| USB cable (Lesson #30 priority) | User confirmed cable good across multiple installs; bug reproduces with same install on multiple devices and ports |
+| Single-unit hardware defect | Multiple devices affected per user report |
+| Host USB port / controller | Multiple ports on multiple computers tested |
+| eMMC wear from repeated installs | Math: ~3-4 GB of writes across 15-20 cycles is two orders of magnitude below MLC/TLC endurance threshold |
+| Kobo firmware tamper detection (Lesson #32) | Stable + failing devices on identical firmware string `4.42.23291` |
+| v2.47 → v2.48 code diff introduced bug | v2.47 also factory-resets immediately |
+| Rapid-cycle methodology / short on-time | v2.47 factory-reset after one slow, clean cycle with real reading session |
+| Force-off / dirty shutdown | User shutdowns are clean via Plato burger menu → Power Off |
+
+### Remaining hypotheses (ranked)
+
+1. **v2.46 → v2.47 diff triggers the bug.** Two parts:
+   - `convert-dictionary.sh` got the `cp` fallback in v2.47. Before this, conversion silently failed on FAT (busybox `trap ERR` is a no-op, unconditional `ln` returned EPERM). v2.45/v2.46 devices therefore have un-converted StarDict files on disk, no dictd-format `.dict.dz` or `.index`. v2.47+ devices have successfully converted files. **If Nickel watches `/mnt/onboard/.adds/plato/dictionaries/` or specific file patterns there, the converted state may trigger the bug.**
+   - Installer's eject path: v2.45/46 leaves FAT dirty, fsck.fat truncates `dict.dz` and some EPUBs on next boot. v2.47+ does a clean eject; all files intact. **The truncated files in v2.45/46 may be what prevents the bug from triggering.**
+
+2. **Some specific file write pattern from successful dictionary conversion** is the actual trigger. v2.47 writes ~32 MB `.dict.dz` (dictd format, different from StarDict source) + ~14 MB `.index` to `/mnt/onboard/.adds/plato/dictionaries/`. v2.45/46 never wrote these (conversion silently failed). Testing: install v2.47 but remove `dictionaries/` and `convert-dictionary.sh` from device before first boot, see if it survives. **Highest expected-information experiment for next session.**
+
+3. **Some sqlite/Nickel state we haven't snapshotted.** `KoboReader.sqlite` is now in the snapshot function (added 2026-05-23). Compare across boots to look for drift.
+
+4. **fsck.fat cascading damage.** Each boot, if any FAT inconsistency exists, fsck runs and shaves a bit more. Snapshot function now grep's info.log for `fsck` mentions automatically. No evidence yet but easy to confirm in next test.
+
+5. **Something specific about how the stable device was installed.** May have been:
+   - Manually drag-dropped from a v2.45 or v2.46 release zip (bypassing all installer eject paths)
+   - Installed when firmware was older than 4.42 (would need to check `.kobo/` for any pre-OTA file remnants — but the firmware string matches now)
+   - Factory-reset prior to install or not
+   We don't currently know.
+
+### Recommended first actions for next session
+
+1. **Don't install v2.47+ on any test device.** It will factory-reset, burning the device. We have enough evidence already.
+
+2. **Run the dictionary-removal experiment.** Procedure:
+   - Factory-reset a Clara BW test device.
+   - Run `install-sangala.ps1` for v2.47 normally (Phase 1 + Phase 2).
+   - Before powering off after Phase 2, with the device still in USBMS mode (Connect USB still active in Plato), delete:
+     - `D:\.adds\plato\dictionaries\` (entire directory)
+     - `D:\.adds\plato\convert-dictionary.sh`
+     - Optionally `D:\.adds\plato\dictionary.log` for cleanliness
+   - Eject cleanly, let device reboot into Plato (no dictionaries), then power-cycle 10+ times with the same protocol that factory-reset v2.47 first time.
+   - If it survives: dictionaries / conversion is the trigger. v2.45/46 worked because conversion silently failed.
+   - If it factory-resets anyway: dictionaries not the trigger; look at #2-5 above.
+
+3. **Investigate the stable device's install history.** Ask the user when and how that device was installed. Differences from the test devices' installs are the variable.
+
+4. **Capture snapshots between every cycle** using the `Snap-Device` PS function (added in this session — defined inline at the end of the conversation; not yet committed to `tools/snapshot-device.ps1`). Look for drift in `KoboReader.sqlite` size/hash and `fsck.fat` hits in info.log.
+
+### Deferred work (cherry-picks from `claude/customize-plato-ui-1Edbm`)
+
+User has confirmed they want these once a working baseline exists:
+1. **Remove "Enable WiFi" from burger menu** — commit `b2fc858` on the discarded branch. Single hunk in `crates/core/src/view/common.rs`. One-line cherry-pick.
+2. **Auto-reload dictionaries on empty lookup** — already in v2.48 (the v2.47 → v2.48 diff in `crates/core/src/view/dictionary/mod.rs`). On the current v2.48 baseline, this is already shipped.
+
+These should not be added until the factory-reset bug is resolved on whatever the new baseline is.
+
+### Snapshot script (Lesson #34 follow-up)
+
+The PowerShell `Snap-Device` function used in this session captures per-cycle:
+- `info.log`, `dictionary.log`, `Settings.toml`, `.kobo/version` (copied)
+- SHA256 + size of `plato`, `plato.sh`, `convert-dictionary.sh`, `Settings.toml`, `KoboReader.sqlite` (manifest)
+- Automatic grep for `fsck` mentions in info.log
+
+The function body is in this session's conversation. **Worth committing to `tools/snapshot-device.ps1`** in the next session — Lesson #34 still applies.
+
+### v2.48.1 release notes
+
+Tagged 2026-05-23T12:13Z, commit `70abdd5` on `sangala-v2.48-base`. Contains v2.48 + 8 EPUBs added to `.STEM/Science/Biology/` (Plant Nutrition guide, Photosynthesis x4, Plant Transport, Pigment Chromatography Lab, Metabolic Connections — all numbered with prefix `0. ... 7. ...` for reading order). Released as pre-release. Same factory-reset bug as v2.48. EPUB content is independently useful but the release is not safe to deploy broadly until the factory-reset bug is fixed.
 
 ## Single-package vs two-package (open question)
 
@@ -293,7 +389,8 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 
 ## Known Issues / Pending
 
-- **Fresh install hang**: fixed in v2.32. Validated on factory-reset Clara BW (2026-05-06). v2.44+'s no-grace-on-subsequent-boots optimization preserves the factory-reset path unchanged.
+- **Factory reset on power-cycle (TOP PRIORITY, UNRESOLVED).** Confirmed on Clara BW for v2.47, v2.48, v2.48.1, and the discarded v2.49-v2.53 line — at least one device factory-resets within 1-6 clean power-cycles after install. v2.45/v2.46 appears unaffected (one device, 2+ weeks of multiple reboots, identical firmware to failing devices). Eight hypotheses tested and ruled out this session — see Session-End Handoff (2026-05-23 part 2) at bottom. Highest-priority untested hypothesis is **the v2.46→v2.47 diff: either successful dictionary conversion (v2.45/46 fails silently) or the installer's clean eject path (v2.45/46 corrupts FAT)**. Either could change device-side state that interacts with Nickel.
+- **Fresh install hang**: fixed in v2.32. Validated on factory-reset Clara BW (2026-05-06). v2.44+'s no-grace-on-subsequent-boots optimization preserves the factory-reset path unchanged. (Note: any "validated stable" claim made before 2026-05-23 should be treated with skepticism — install-and-boot-once isn't sufficient.)
 
 ## Long-term TODO
 
@@ -328,5 +425,10 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 21. **busybox `sh` doesn't recognize `trap '...' ERR`.** It's a bash extension. busybox logs `trap: ERR: invalid signal specification` and silently doesn't install the trap, so errors don't propagate. Use `set -e` instead (busybox supports it). Discovered when v2.47's `dictionary.log` showed the trap-installation error on every conversion attempt — the entire premise of "the failed `ln` exits the script and conversion never runs" turned out to be false because the trap never fired in the first place. (`ln` failure on FAT was real, but the script kept going past it.)
 22. **`CM_Request_Device_Eject` alone doesn't tell USB MSC devices to exit USBMS mode.** It cleanly detaches the volume from Windows but doesn't issue SCSI EJECT. On Kobo, that means the device's screen stays on "Connected" until the cable is physically yanked. Send `IOCTL_STORAGE_EJECT_MEDIA` (after `FSCTL_LOCK_VOLUME` + `FSCTL_DISMOUNT_VOLUME`) BEFORE `CM_Request_Device_Eject` to make Nickel's USBMS handler exit cleanly. v2.48 added this; before that, every install required two cable yanks.
 23. **Plato's `load_dictionaries()` runs once at startup.** It does not watch the filesystem. If the StarDict→dictd conversion finishes after Plato launched (which is the normal case on fresh install), the user has to manually pick "Reload Dictionaries" from the title menu or restart Plato. v2.48 patches `query_to_content` to auto-rescan when `dictionaries.is_empty()` so the first lookup after install picks up the just-finished conversion.
-19. **GitHub raw URLs are CDN-cached for ~5 minutes.** When iterating an installer script, cache-bust pulls with `?cb=$([guid]::NewGuid().ToString())` to avoid debugging stale code. After this, also re-run the parser pre-flight to confirm what was downloaded matches what was pushed.
-20. **Most macOS users won't see the Sangala folders** in Finder by default because they all start with `.`. Cmd+Shift+. toggles hidden-file visibility. Same files exist; Finder just hides them. Tell users this up front.
+24. **GitHub raw URLs are CDN-cached for ~5 minutes.** When iterating an installer script, cache-bust pulls with `?cb=$([guid]::NewGuid().ToString())` to avoid debugging stale code. After this, also re-run the parser pre-flight to confirm what was downloaded matches what was pushed.
+25. **Most macOS users won't see the Sangala folders** in Finder by default because they all start with `.`. Cmd+Shift+. toggles hidden-file visibility. Same files exist; Finder just hides them. Tell users this up front.
+26. **Don't keep raising hypotheses the user has explicitly ruled out.** This session, the assistant raised "USB cable" as a candidate multiple times after the user had stated the cable was good. Trust user judgment on physical artifacts they can directly inspect; if a hypothesis has been rejected with first-hand evidence, drop it from the ranking entirely rather than re-listing it. Same applies to "single-unit hardware defect" once the user reports multiple devices, "host USB port" once the user reports multiple ports/computers, etc.
+27. **Verify degradation-mechanism claims with arithmetic before asserting them.** The assistant cited "eMMC wear from 15+ factory-reset cycles" as a possible cause; user pushed back; on calculation, ~3-4 GB of writes spread across a 6 GB partition by a wear-leveling controller is two orders of magnitude below MLC/TLC endurance. The hypothesis was unsupportable. For any claim of the form "this hardware degradation might be the cause", do the math first — write volume per cycle, total cycles, partition size, wear-leveling assumption, endurance rating — before adding it to a ranked list.
+28. **Identical Plato binary across releases doesn't mean identical on-device state.** The stable v2.45/46 device and the failing v2.47 test devices ship the same `plato` binary (same SHA256). But the install state is different: v2.45/46 silently fails to convert the dictionary (broken `trap ERR` + unconditional `ln`) and v2.45/46's installer corrupts FAT during eject (fsck truncates files). So the stable device has UN-converted StarDict files and possibly missing/truncated EPUBs. The failing devices have fully-converted dictd-format dictionary files and a clean filesystem. **The corruption itself may be what bypasses the factory-reset bug.** Two takeaways: (a) "same binary" is not the same as "same configuration"; (b) when an older version "just works", check whether it's working because of brokenness, not despite it.
+29. **A test-device install that boots once isn't proof the build is stable. A single power-cycle that reboots into the same state isn't either.** v2.47 factory-reset on the FIRST clean manual power-cycle on this session's test device — after a clean install, a fully-loaded Plato, a real-use session, and a clean shutdown via Plato's burger menu. The previous "stable" rating on v2.47/v2.48 came from device tests that didn't include a manual power-cycle after install. Update the test protocol to require at least 5 clean power-cycles (install → use → power off via menu → power on → repeat) before any "verified stable" claim, with snapshots between each cycle to look for drift.
+30. **The v2.46→v2.47 diff is the smallest blast-radius candidate for the factory-reset bug.** Between these two versions: (a) `convert-dictionary.sh` got the `cp` fallback so conversion actually completes on FAT (was silent no-op before); (b) installer added `CM_Request_Device_Eject` so the eject doesn't corrupt FAT anymore. The Plato binary, KoboRoot.tgz scripts, and Settings.toml are unchanged across this diff. So if the bug is introduced between v2.46 and v2.47, it's introduced by EITHER the dictionary conversion writing new files OR the installer leaving the filesystem in a clean state. Either could plausibly cause Nickel to behave differently. Test isolation: install v2.47 then delete `dictionaries/` + `convert-dictionary.sh` before first boot; if it survives power-cycles, dictionary state is the trigger.
