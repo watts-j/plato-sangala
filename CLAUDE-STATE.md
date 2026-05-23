@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-05-23 (factory-reset investigation; no fix yet, see Session-End Handoff)
+Last updated: 2026-05-23 (factory-reset investigation; no fix yet — and v2.53 was tagged with the failed revert, see Session-End Handoff and the v2.53 warning below)
 
 ## Working Conventions (read first)
 
@@ -19,7 +19,8 @@ Avoid both. Specifically:
 ## Reference Versions
 
 - **No version is currently considered stable.** As of 2026-05-23, the test device (Clara BW, firmware 4.42.23291 — see Device section) factory-resets on the ~3rd power cycle regardless of which version is installed. **v2.24's manual drag-drop install on the same device also produced frozen dots**, which means the bug is NOT in anything we've changed since v2.24 — it pre-dates the entire customization arc, or is hardware/environment-specific to this device. The v2.49 production batch of ~30 devices is presumed at-risk (untested under multiple power cycles). See Session-End Handoff (2026-05-23) for the full picture.
-- **v2.52-sangala** — Latest pre-release (2026-05-22, current `prerelease: true` on GitHub). Three changes on top of v2.50: (a) drop GUI `.exe` from `install-sangala.zip` (CLI .ps1 only); (b) remove "Enable WiFi" from burger menu; (c) 12-hour clock with AM/PM, simplified clock menu (Set Hour 1–12, Set Minute in 6 buckets of 10 with 1-minute granularity, no date display). **None of these are fixes for the factory-reset bug** — they were originally landed because we thought the GUI installer was the cause; that theory was disproven by a v2.49 CLI install also resetting (2026-05-23). The changes themselves are good on their own merits.
+- **v2.53-sangala — DO NOT INSTALL.** Pre-release tagged 2026-05-23 at commit `104f326`. Contents over v2.52: only the boot-grace revert (`ebcf55c`) plus a CLAUDE-STATE update — **no fix for the factory-reset bug.** The revert was device-tested and did NOT stop the reset. The tag was created in spite of the handoff explicitly saying not to ship this; the release body is the standard auto-generated template with no warning. Anyone installing v2.53 expecting a fix will still factory-reset on the test device, and the v2.49 production batch is no better off. Discovered (and warned about here) on 2026-05-23. Next session should consider either deleting the v2.53 release + tag or editing the release body to prepend a "DO NOT INSTALL" warning — left as-is for now per user direction.
+- **v2.52-sangala** — Previous pre-release (2026-05-22). Three changes on top of v2.50: (a) drop GUI `.exe` from `install-sangala.zip` (CLI .ps1 only); (b) remove "Enable WiFi" from burger menu; (c) 12-hour clock with AM/PM, simplified clock menu (Set Hour 1–12, Set Minute in 6 buckets of 10 with 1-minute granularity, no date display). **None of these are fixes for the factory-reset bug** — they were originally landed because we thought the GUI installer was the cause; that theory was disproven by a v2.49 CLI install also resetting (2026-05-23). The changes themselves are good on their own merits.
 - **v2.51-sangala** — Pre-release (2026-05-22). Superseded by v2.52. Dropped GUI `.exe` from release zip, removed "Enable WiFi" from burger menu.
 - **v2.50-sangala** — Pre-release (2026-05-21). Workflow change: dictionary `cp` moved out of `shared-content/` into the install-package-only step, so `-update.tar.gz` no longer overwrites the on-device converted dictd `.dict.dz` (see Lesson #31). Artifact contents verified (no dict files in update tarball); on-device verification deferred when factory-reset investigation took priority.
 - **v2.49-sangala** — Was marked current stable on 2026-05-15 after a "successful" production deployment of ~30 factory-reset Clara BW devices, but **the production batch was never tested with the multi-power-cycle protocol that now reliably reproduces factory resets**. As of 2026-05-23 the v2.49 deployment is presumed at-risk. Three changes over v2.48: (1) GUI installer's WinForms timer rewritten as a single tick handler dispatching by `$script:S.Mode` — fixes a handler-accumulation bug where Phase 2's completion was processed by Phase 1's leftover `On-CopyTick` first, re-ejecting the device and landing at Show-DetectedUpdate instead of Show-Done; (2) GUI installer falls back to `[Environment]::GetCommandLineArgs()[0]` when `$PSScriptRoot` is empty, so the PS2EXE-wrapped .exe can resolve its own directory (under PS2EXE the script is hosted in-memory and `$PSScriptRoot` is empty); (3) GUI's name-prompt status text dropped the stale "Welcome, {name}!" example. Original "stable" note: the in-batch failure mode (frozen non-animated three dots after Phase 2) was originally attributed to a flaky USB cable per Lesson #30 — but the same symptom now occurring on v2.24's manual drag-drop install means the cable explanation was at best partial and at worst wrong.
@@ -59,11 +60,11 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**No tag should be shipped without further investigation of the factory-reset bug.** v2.53 has the boot-grace revert committed on branch (commit `ebcf55c`) but **was not tagged because the revert was tested on-device and did not fix the reset**. See Session-End Handoff (2026-05-23) for the current state of the investigation.
+**No tag should be shipped without further investigation of the factory-reset bug.**
 
-Latest tagged release: **v2.52-sangala** (2026-05-22).
+Latest tagged release: **v2.53-sangala** (2026-05-23, commit `104f326`) — **DO NOT INSTALL.** The handoff originally said "v2.53 is NOT tagged"; that turned out to be wrong on inspection of origin. The tag exists, the release is published as pre-release with auto-uploaded assets, and it contains only the failed boot-grace revert. See the v2.53 warning in Reference Versions. Next real fix should be **v2.54-sangala** (do not reuse v2.53).
 
-If/when a fix is found and v2.53 (or later) is ready to tag, follow the standard discipline:
+If/when a fix is found and v2.54 (or later) is ready to tag, follow the standard discipline:
 
 **Tagging discipline:** before suggesting any next tag number, fetch tags and check `git ls-remote --tags origin | awk '{print $2}' | sed 's|refs/tags/||;s|\^{}||' | sort -V -u | tail` (or use `mcp__github__list_tags`). The naive `sort -V` on full `ls-remote` output sorts by SHA, not by tag name. A previous session shipped a duplicate v2.46 tag because the assistant reasoned about tag positions from a misread `git rev-parse v2.X-sangala^{commit}` output (PowerShell ate the `{commit}` brace, the resulting `^` returned the parent commit, and the assistant treated that as the tag's commit). Always single-quote refs with `{}` in PowerShell: `'v2.X-sangala^{commit}'`.
 
@@ -317,8 +318,8 @@ The symptoms appear regardless of which installer is used (manual drag-drop on v
 
 - **Branch:** `claude/customize-plato-ui-1Edbm`
 - **Tip:** `c450c00` (CLAUDE-STATE with firmware version) when next session starts; will be later after this handoff commit lands. Use `git fetch && git pull` before doing anything.
-- **Tags pushed:** v2.50, v2.51, v2.52 (all pre-release; none promoted to "Latest" stable).
-- **v2.53 is NOT tagged.** Commit `ebcf55c` (boot-grace revert) sits on the branch but should not be tagged until/unless a real fix is added to it. Tagging v2.53 with only the failed revert would mislead future sessions into thinking that change was the fix.
+- **Tags pushed:** v2.50, v2.51, v2.52, **v2.53** (all pre-release; none promoted to "Latest" stable).
+- **v2.53 IS tagged — DO NOT INSTALL.** Despite the original handoff direction not to tag it, v2.53-sangala exists at commit `104f326` (CLAUDE-STATE: queue v2.53 with the boot-grace revert) and is published as a pre-release on GitHub with auto-built assets. The tagged commit contains only `ebcf55c` (boot-grace revert) on top of v2.52 — the revert was on-device tested and did NOT fix the factory-reset bug. The GitHub release body is the standard auto-generated template with no warning. Considered for next session: either delete tag + release, or edit the body to prepend "DO NOT INSTALL — boot-grace revert, does not fix factory-reset bug." User direction this session: leave the release alone, document here. **Next real fix should tag v2.54-sangala, not reuse v2.53.**
 
 ### Test device specifics
 
@@ -337,7 +338,7 @@ On 2026-05-23 the user proposed: roll the codebase back to v2.24 as a clean base
 2. **If that fixes it**: v2.52 is effectively stable; the v2.49 production deployment may also be fine; close out the investigation and document the cable as the cause.
 3. **If that doesn't fix it**: try a different USB port on the host. Then a different test device if available. Then escalate.
 4. **Do NOT do the v2.24 rewrite** until the above are tried — high cost, low expected value.
-5. **Don't tag v2.53 with just the boot-grace revert** unless something else compelling is added.
+5. **v2.53 is already tagged with just the boot-grace revert** (this is the mistake the original handoff was trying to prevent — it happened anyway). Don't reuse the v2.53 number; next real fix tags v2.54. Consider whether to delete or warning-stamp the v2.53 release before another batch deployment.
 
 ### Conversation-level conventions (carry-forward)
 
