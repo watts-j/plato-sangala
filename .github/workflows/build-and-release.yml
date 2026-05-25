@@ -91,12 +91,23 @@ jobs:
           mkdir -p shared-content/.adds/plato/resources
           cp sangala/kobo-assets/plato-resources/home.png shared-content/.adds/plato/resources/home.png
 
+          # KFMon trigger file (1x1 PNG that Nickel indexes; KFMon watches for an
+          # OPEN event on it via plato.ini and fires plato.sh in response).
+          cp sangala/kobo-assets/plato-resources/launch.png shared-content/.adds/plato/launch.png
+
           # Dictionary (StarDict format, converted on first use)
           cp sangala/dictionaries/* shared-content/.adds/plato/dictionaries/
 
           # Version stamp so devices can be identified post-install
           # (tools/verify-device-version.ps1 reads this file).
           printf '%s\n' "${TAG}" > shared-content/.adds/plato/VERSION
+
+          # User-partition KFMon + NickelMenu config. KoboRoot.tgz ships the
+          # daemon binaries and the libnm.so plugin; this is the per-device
+          # config that the daemon reads.
+          shopt -s dotglob
+          cp -R sangala/user-content/* shared-content/
+          shopt -u dotglob
 
           # Kobo screensaver and config (KoboRoot.tgz added to install package only)
           mkdir -p shared-content/.kobo
