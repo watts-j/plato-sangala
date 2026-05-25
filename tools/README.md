@@ -3,6 +3,20 @@
 Host-side investigation utilities. Run from a Windows machine with the
 Kobo connected and "Connect USB" tapped.
 
+## verify-device-version.ps1
+
+Reports which Sangala build is currently installed on a connected Kobo.
+
+```powershell
+.\tools\verify-device-version.ps1
+```
+
+Primary signal: `.adds\plato\VERSION` (a one-line file containing the
+git tag, shipped from the 2026-05-25 build onward). For older installs
+that predate the VERSION stamp, it prints SHA256 fingerprints of the
+plato binary, plato.sh, Settings.toml, and KoboRoot.tgz so you can
+compare against a known release tarball.
+
 ## snapshot-device.ps1
 
 Pulls a labeled snapshot of the Kobo's user partition state (`.kobo/`,

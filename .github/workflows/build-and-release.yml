@@ -94,6 +94,10 @@ jobs:
           # Dictionary (StarDict format, converted on first use)
           cp sangala/dictionaries/* shared-content/.adds/plato/dictionaries/
 
+          # Version stamp so devices can be identified post-install
+          # (tools/verify-device-version.ps1 reads this file).
+          printf '%s\n' "${TAG}" > shared-content/.adds/plato/VERSION
+
           # Kobo screensaver and config (KoboRoot.tgz added to install package only)
           mkdir -p shared-content/.kobo
           cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
