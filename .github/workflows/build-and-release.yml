@@ -171,11 +171,27 @@ jobs:
 
             Customized Plato build for Kobo Clara BW.
 
+            **Launch architecture (v2.49+):** KFMon + NickelMenu, restored
+            from v2.19's working setup. Nickel boots normally first; KFMon
+            detects its scanner indexing `.adds/plato/launch.png` and fires
+            `plato.sh` after Nickel reaches the home screen (~1–3 s of
+            Nickel home visible at boot, then Plato takes over). This
+            replaces the v2.20–v2.48.1 "minimal KoboRoot.tgz" architecture
+            where `plato-autostart.sh` killed Nickel mid-boot — that
+            architecture surfaced the factory-reset-on-multi-power-cycle
+            bug (Lessons #31, #37 in `CLAUDE-STATE.md`). KFMon-style
+            launching lets Nickel finish booting and write its bootloader
+            healthy-boot marker, so the watchdog counter resets every
+            cycle. NickelMenu also adds a manual "Plato" entry to Nickel's
+            burger menu as a fallback if `on_boot` ever fails to fire.
+
             ### Two packages, applied in sequence for a fresh install:
 
-            **`-install.tar.gz`** — Bootstrap (~30MB). System-level auto-launch
-            setup, Plato app, Settings, dictionaries, screensaver. No EPUBs.
-            Triggers an "updating" screen and one automatic reboot.
+            **`-install.tar.gz`** — Bootstrap (~30MB). System-level
+            auto-launch setup including KFMon daemon binaries, NickelMenu
+            Qt plugin, KFMon-aware `on-animator.sh`, Plato app, Settings,
+            dictionaries, screensaver. No EPUBs. Triggers an "updating"
+            screen and one automatic reboot.
 
             **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
             and the EPUB library. No system changes, no reboot.
