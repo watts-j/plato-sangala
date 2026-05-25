@@ -32,7 +32,9 @@ recovery factory-resets the device.
 # ...
 ```
 
-Snapshots are written to `%USERPROFILE%\Desktop\Snapshots\<timestamp>-<label>\`.
+Snapshots are written to `%USERPROFILE%\Desktop\Install\<timestamp>-<label>\` by default. Override with `-OutDir <path>`.
+
+**Note on PowerShell execution policy:** if you see "running scripts is disabled on this system," run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once per PowerShell window before invoking any of these scripts.
 
 ## diff-snapshots.ps1
 
@@ -42,11 +44,11 @@ lines in `autostart.log`.
 
 ```powershell
 .\tools\diff-snapshots.ps1 `
-    -A "$env:USERPROFILE\Desktop\Snapshots\20260525-100000-boot1" `
-    -B "$env:USERPROFILE\Desktop\Snapshots\20260525-101500-boot2"
+    -A "$env:USERPROFILE\Desktop\Install\20260525-100000-boot1" `
+    -B "$env:USERPROFILE\Desktop\Install\20260525-101500-boot2"
 ```
 
-## Factory-reset investigation protocol (CLAUDE-STATE Lessons #32/#33/#34/#35)
+## Factory-reset investigation protocol (CLAUDE-STATE Lessons #29/#31)
 
 1. Install on a fresh Clara BW.
 2. After install completes and Plato launches: `snapshot-device.ps1 -Label boot1-post-install`.

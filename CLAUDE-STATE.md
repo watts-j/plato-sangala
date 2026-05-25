@@ -56,7 +56,7 @@ Avoid both. Specifically:
 
 ## Next Tag Number
 
-**Don't ship a new tag without addressing the factory-reset bug first.** v2.48 and v2.48.1 are tagged; both factory-reset on Clara BW. Next genuine fix should tag **v2.49-sangala** (the previous v2.49 was deleted on 2026-05-23, see Reference Versions). Do NOT reuse v2.48.x as a patch line — the bug is in the v2.48 baseline itself, not in additions on top.
+**Don't ship a new tag without addressing the factory-reset bug first.** v2.32 through v2.48.1 all factory-reset under proper multi-power-cycle testing (Lesson #31, 2026-05-25). The bug is structural, not version-specific. Next genuine fix should tag **v2.49-sangala** (the original v2.49 was deleted on 2026-05-23, see Reference Versions). Do NOT reuse v2.48.x as a patch line.
 
 If a no-fix content-only update is wanted (e.g., more EPUBs added), it can ship as v2.48.2 with a release-note warning that the factory-reset bug is unresolved. But this just propagates the problem to more devices, so it's not recommended.
 
@@ -108,7 +108,7 @@ This shows every parse error in one pass instead of fixing one and rediscovering
 
 ## Branch
 
-`sangala-v2.48-base` (created 2026-05-23 from `v2.48-sangala` tag; rollback from the `claude/customize-plato-ui-1Edbm` branch that had carried v2.49-v2.53 work). Current tip = `70abdd5` + CLAUDE-STATE updates. The original branch with the discarded 20 commits is preserved at `claude/customize-plato-ui-1Edbm`.
+**`sangala-v2.48-base`** (created 2026-05-23 from `v2.48-sangala` tag; rollback from the `claude/customize-plato-ui-1Edbm` branch that had carried v2.49-v2.53 work). Tip as of 2026-05-25: includes the snapshot/verify tools under `tools/` and the build-workflow VERSION-stamp commit. The original branch with the discarded 20 commits is preserved at `claude/customize-plato-ui-1Edbm` (do not push there). **Always confirm the working branch with `git branch --show-current` at session start — see Lesson #33; this session's tools commits initially went to the wrong branch because CLAUDE-STATE's old Branch line was trusted instead.**
 
 ## User Working Directory
 
@@ -422,17 +422,28 @@ Kobo's bootloader has a watchdog-style boot-attempt counter. It increments each 
 
 ### Recommended first actions for next session
 
-1. **Run the snapshot protocol** on a fresh install with multi-power-cycle testing. Watch `.kobo/Kobo/Kobo eReader.conf` (`sleepOnNextBoot`, `syncOnNextBoot`, `LastFTEStep`), `.kobo/version`, and `KoboReader.sqlite` for drift between successive boots. The marker Kobo is incrementing should be visible in the diff.
+1. **Install v2.48 or v2.48.1 fresh on a Clara BW** (the latest released versions; closest to what production devices have). Skip v2.32 — testing it was useful as a "bug-pre-dates-everything" data point but it's not what we'd ship.
 
-2. **If the snapshot protocol identifies a marker**, modify `plato-autostart.sh` to write/reset it after Plato launches successfully. Smallest possible architectural change.
+2. **Run the snapshot protocol** via the `tools/` scripts committed this session:
+   - `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` (once per PowerShell window)
+   - `.\tools\snapshot-device.ps1 -Label boot1-post-install` after install completes
+   - Open a book, dictionary lookup, power off via Plato burger menu, wait 20-30s, power on
+   - `.\tools\snapshot-device.ps1 -Label boot2`
+   - Repeat with `boot3`, `boot4`, ... until the device factory-resets
+   - `.\tools\diff-snapshots.ps1 -A <bootN> -B <bootN+1>` between consecutive snapshots
+   - Snapshots default to `%USERPROFILE%\Desktop\Install\<timestamp>-<label>\`
 
-3. **If no manageable marker is found**, switch to **KFMon-based launching**. KFMon doesn't kill Nickel — it adds a Kobo Reader collection icon that launches Plato as a separate process. Upstream Plato community pattern; doesn't have this problem. Substantial restructuring: remove `plato-autostart.sh` and the minimal `on-animator.sh`, reintroduce v2.3-era KFMon binaries, configure a KFMon icon that runs `plato.sh`. v2.28 tried this and failed only because we kept `plato-autostart.sh` alongside (Lesson #13).
+3. **Watch specifically for**: changes to `.kobo/Kobo/Kobo eReader.conf` (`sleepOnNextBoot`, `syncOnNextBoot`, `LastFTEStep`), `.kobo/version` (Kobo writes to this every boot), `.kobo/KoboReader.sqlite` size growth, and any new files appearing in `.kobo/`. Any consistently-escalating value or new file is the candidate for Kobo's boot-attempt counter.
 
-4. **Do NOT propose "rebuild in Nickel"** — Lesson #36 documents why it can't work for Sangala's UX.
+4. **If the snapshot reveals a manageable marker**, modify `plato-autostart.sh` to write/reset it after Plato launches successfully. One-line architectural fix; all Sangala UX preserved.
 
-5. **Do NOT propose v2.24 or older rollback** — every old base also factory-resets when properly tested.
+5. **If no marker is found, switch to KFMon-based launching.** KFMon doesn't kill Nickel — it adds a Kobo Reader collection icon that launches Plato as a separate process. v2.28's attempt failed only because we kept `plato-autostart.sh` alongside it (Lesson #13). Properly: remove `plato-autostart.sh` AND the minimal `on-animator.sh`, reintroduce v2.3-era KFMon binaries, configure a KFMon icon that runs `plato.sh`. Substantial work; matches the upstream Plato pattern.
 
-6. **Production v2.49 batch (~30 devices) is at risk.** No field reports of resets yet, but presumed at-risk if users power-cycle enough.
+6. **A single v2.19 test could confirm the architecture hypothesis** before committing to the KFMon retrofit — v2.19 was the last KFMon-based build. If v2.19 installs on Clara BW and survives multi-power-cycle, KFMon is the answer. If it fails to install (v2.19 is pre-Clara-BW per CLAUDE-STATE), skip it and go straight to the retrofit on `sangala-v2.48-base`.
+
+7. **Do NOT propose "rebuild in Nickel"** — Lesson #32 documents why it can't work for Sangala's UX.
+
+8. **Production v2.49 batch (~30 devices) is at risk.** No field reports of resets yet, but presumed at-risk under cumulative power-cycling. No remediation possible until the architectural fix lands.
 
 ## Single-package vs two-package (open question)
 

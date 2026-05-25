@@ -1,7 +1,7 @@
 # snapshot-device.ps1
 #
 # Pulls a labeled snapshot of a connected Kobo's user partition state for
-# the factory-reset investigation (CLAUDE-STATE.md, Lessons #32/#34).
+# the factory-reset investigation (CLAUDE-STATE.md, Lessons #31/#34).
 #
 # Usage:
 #   .\tools\snapshot-device.ps1 -Label boot1
@@ -20,7 +20,7 @@ param(
     [string]$Drive,
 
     [Parameter()]
-    [string]$OutDir = (Join-Path $env:USERPROFILE 'Desktop\Snapshots')
+    [string]$OutDir = (Join-Path $env:USERPROFILE 'Desktop\Install')
 )
 
 $ErrorActionPreference = 'Stop'
