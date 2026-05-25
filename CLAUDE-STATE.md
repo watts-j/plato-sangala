@@ -200,12 +200,12 @@ Menu (top bar — always shows "Menu" regardless of active library)
 ## Burger Menu (hamburger icon)
 
 - System Info
-- Enable WiFi
-- Applications (Calculator, Dictionary)
+- Dictionary
 - Connect USB
-- Power Off
 
-(Removed: Invert Colors, Reboot)
+(Removed: Invert Colors, Reboot, Enable WiFi, Applications submenu, Calculator, Power Off)
+
+**Power-off note:** as of the burger-menu trim, Power Off is no longer surfaced anywhere in Plato's UI. Users power off via the hardware power button (long press) or wait for the auto-power-off timer (3 min from Settings.toml). The multi-power-cycle test protocol "power off via Plato burger menu" step now becomes "long-press power button until shutdown."
 
 ## EPUBs Included
 

@@ -72,22 +72,13 @@ pub fn toggle_main_menu(view: &mut dyn View, rect: Rectangle, enable: Option<boo
             return;
         }
 
-        let apps = vec![EntryKind::Command("Calculator".to_string(),
-                                           EntryId::Launch(AppCmd::Calculator)),
-                        EntryKind::Command("Dictionary".to_string(),
-                                           EntryId::Launch(AppCmd::Dictionary { query: "".to_string(), language: "".to_string() }))];
-        let mut entries = vec![EntryKind::Command("System Info".to_string(),
-                                                  EntryId::SystemInfo),
-                               EntryKind::Separator,
-                               EntryKind::CheckBox("Enable WiFi".to_string(),
-                                                   EntryId::ToggleWifi,
-                                                   context.settings.wifi),
-                               EntryKind::Separator,
-                               EntryKind::SubMenu("Applications".to_string(), apps),
-                               EntryKind::Separator];
-
-        entries.push(EntryKind::Command("Connect USB".to_string(), EntryId::ConnectUSB));
-        entries.push(EntryKind::Command("Power Off".to_string(), EntryId::PowerOff));
+        let entries = vec![EntryKind::Command("System Info".to_string(),
+                                              EntryId::SystemInfo),
+                           EntryKind::Separator,
+                           EntryKind::Command("Dictionary".to_string(),
+                                              EntryId::Launch(AppCmd::Dictionary { query: "".to_string(), language: "".to_string() })),
+                           EntryKind::Separator,
+                           EntryKind::Command("Connect USB".to_string(), EntryId::ConnectUSB)];
 
         let main_menu = Menu::new(rect, ViewId::MainMenu, MenuKind::DropDown, entries, context);
         rq.add(RenderData::new(main_menu.id(), *main_menu.rect(), UpdateMode::Gui));
