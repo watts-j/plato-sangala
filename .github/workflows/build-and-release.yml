@@ -91,6 +91,10 @@ jobs:
           mkdir -p shared-content/.adds/plato/resources
           cp sangala/kobo-assets/plato-resources/home.png shared-content/.adds/plato/resources/home.png
 
+          # Version stamp so devices can be identified post-install
+          # (tools/verify-device-version.ps1 reads this file).
+          printf '%s\n' "${TAG}" > shared-content/.adds/plato/VERSION
+
           # Kobo screensaver and config (KoboRoot.tgz added to install package only)
           mkdir -p shared-content/.kobo
           cp -R sangala/kobo-assets/screensaver shared-content/.kobo/
