@@ -11,7 +11,7 @@ auto-share = false
 button-scheme = "natural"
 auto-suspend = 30.0
 auto-power-off = 3.0
-time-format = "%H:%M"
+time-format = "%-I:%M %p"
 date-format = "%A, %B %-d, %Y"
 selected-library = 5
 

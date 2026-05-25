@@ -139,27 +139,42 @@ pub fn toggle_clock_menu(view: &mut dyn View, rect: Rectangle, enable: Option<bo
             return;
         }
         let now = Local::now();
-        let current_hour = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
+        let current_hour_24 = now.format("%H").to_string().parse::<u32>().unwrap_or(0);
         let current_minute = now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+        let current_is_pm = current_hour_24 >= 12;
+        let current_hour_12 = match current_hour_24 {
+            0 => 12,
+            13..=23 => current_hour_24 - 12,
+            _ => current_hour_24,
+        };
 
-        let hours: Vec<EntryKind> = (0..24).map(|h| {
-            EntryKind::RadioButton(format!("{:02}", h),
-                                   EntryId::SetTimeHour(h),
-                                   h == current_hour)
+        let am_pm: Vec<EntryKind> = [(false, "AM"), (true, "PM")].iter().map(|(is_pm, label)| {
+            EntryKind::RadioButton(label.to_string(),
+                                   EntryId::SetClockAmPm(*is_pm),
+                                   *is_pm == current_is_pm)
         }).collect();
 
-        let minutes: Vec<EntryKind> = (0..60).step_by(5).map(|m| {
-            EntryKind::RadioButton(format!("{:02}", m),
-                                   EntryId::SetTimeMinute(m),
-                                   m == current_minute / 5 * 5)
+        let hours: Vec<EntryKind> = (1..=12).map(|h| {
+            EntryKind::RadioButton(format!("{}", h),
+                                   EntryId::SetClockHour12(h),
+                                   h == current_hour_12)
         }).collect();
 
-        let text = now.format(&context.settings.date_format).to_string();
+        let minute_buckets: Vec<EntryKind> = (0..6).map(|bucket| {
+            let start = bucket * 10;
+            let end = start + 9;
+            let inner: Vec<EntryKind> = (start..=end).map(|m| {
+                EntryKind::RadioButton(format!("{:02}", m),
+                                       EntryId::SetClockMinute(m),
+                                       m == current_minute)
+            }).collect();
+            EntryKind::SubMenu(format!("{}-{}", start, end), inner)
+        }).collect();
+
         let entries = vec![
-            EntryKind::Message(text, None),
-            EntryKind::Separator,
+            EntryKind::SubMenu("AM/PM".to_string(), am_pm),
             EntryKind::SubMenu("Set Hour".to_string(), hours),
-            EntryKind::SubMenu("Set Minute".to_string(), minutes),
+            EntryKind::SubMenu("Set Minute".to_string(), minute_buckets),
         ];
         let clock_menu = Menu::new(rect, ViewId::ClockMenu, MenuKind::DropDown, entries, context);
         rq.add(RenderData::new(clock_menu.id(), *clock_menu.rect(), UpdateMode::Gui));
