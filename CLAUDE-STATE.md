@@ -211,68 +211,9 @@ Menu (top bar — always shows "Menu" regardless of active library)
 
 **Power-off note:** as of the burger-menu trim, Power Off is no longer surfaced anywhere in Plato's UI. Users power off via the hardware power button (long press) or wait for the auto-power-off timer (3 min from Settings.toml). The multi-power-cycle test protocol "power off via Plato burger menu" step now becomes "long-press power button until shutdown."
 
-## EPUBs Included
+## EPUBs
 
-### .Enrichment/Drama
-- A Doll's House - Henrik Ibsen
-- A Midsummer Night's Dream - William Shakespeare
-- Hamlet - William Shakespeare
-- King John - William Shakespeare
-- King Lear - William Shakespeare
-- Oedipus Rex - Sophocles
-- Oedipus at Colonus - Sophocles
-- Richard III - William Shakespeare
-- The Cherry Orchard - Anton Chekhov
-- The Tempest - William Shakespeare
-
-### .Enrichment/Fiction
-- Crime and Punishment - Fyodor Dostoevsky
-- Dracula - Bram Stoker
-- Fables - Aesop
-- Fathers and Children - Ivan Turgenev
-- Flatland - Edwin A. Abbott
-- Frankenstein - Mary Shelley
-- Penrod - Booth Tarkington
-- Pride and Prejudice - Jane Austen
-- Saint Joan - George Bernard Shaw
-- Short Fiction - Anton Chekhov
-- Short Fiction - H. G. Wells
-- Short Fiction - Herman Melville
-- Short Fiction - Leo Tolstoy
-- Short Fiction - O. Henry
-- Short Science Fiction - Isaac Asimov
-- The Country Wife - William Wycherley
-- The Iliad - Homer
-- The Odyssey - Homer
-- The Verger - Somerset Maugham
-- The Way of the World - William Congreve
-
-### .Enrichment/Sangala Story Exchange
-- A Leopard in the Forest
-
-### .Enrichment/Nonfiction
-- Essays - Henry David Thoreau
-- South! The Story of Shackleton - Ernest Shackleton
-- The Autobiography of Benjamin Franklin
-- Walden - Henry David Thoreau
-- Wild Animals I Have Known - Ernest Thompson Seton
-
-### .Enrichment/Poetry
-- Lyrical Ballads - William Wordsworth
-- Poetry - William Carlos Williams
-- Poetry - William Shakespeare
-
-### .STEM/Science/Biology
-- Photosynthesis (AP level)
-- Photosynthesis (Grade 11)
-- Photosynthesis (deeper)
-- Photosynthesis (overview)
-- Pigment Chromatography Lab
-- Plant Transport
-
-### .Resources
-- Sangala Reader Initiative (About/)
-- Newsletter (Fall 2025) - REACH for Uganda (REACH for Uganda Newsletters/)
+Library skeleton ships **empty** as of 2026-05-25: every content directory has a `.gitkeep` only. EPUB content is copied to devices manually via USB during install, NOT shipped in the update package. Earlier versions (v2.34–v2.50) shipped ~40-110 MB of EPUBs in the update tarball; removed because some sources exceed GitHub's 100 MB per-file cap and because the manual-copy workflow is preferred for the production deployment. Library folder layout is preserved on the device via the .gitkeep'd directories so Plato's cascading menu still lists the categories.
 
 ## Session-End Handoff (2026-05-08, after v2.47 device test)
 
