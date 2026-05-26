@@ -121,9 +121,13 @@ jobs:
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           UPDATE="plato-sangala-${TAG}-update"
-          cp -R shared-content "${UPDATE}"
-          # Library content (EPUBs) — dot-prefixed folders hidden from Nickel.
-          # Shipped only in the update package so the install package stays small.
+          mkdir -p "${UPDATE}"
+          # Update package is library content ONLY (dot-prefixed folders hidden
+          # from Nickel). The install package already places Plato + Settings +
+          # dictionaries + KFMon configs + screensaver via shared-content; the
+          # update package adds only the EPUB library on top, so re-copying
+          # shared-content here would just produce duplicate writes that risk
+          # interrupting first-boot dictionary conversion on Clara BW.
           shopt -s dotglob
           cp -R sangala/library-skeleton/* "${UPDATE}/"
           shopt -u dotglob
@@ -185,29 +189,45 @@ jobs:
             cycle. NickelMenu also adds a manual "Plato" entry to Nickel's
             burger menu as a fallback if `on_boot` ever fails to fire.
 
-            ### Two packages, applied in sequence for a fresh install:
+            ### Packages
 
-            **`-install.tar.gz`** — Bootstrap (~30MB). System-level
-            auto-launch setup including KFMon daemon binaries, NickelMenu
-            Qt plugin, KFMon-aware `on-animator.sh`, Plato app, Settings,
-            dictionaries, screensaver. No EPUBs. Triggers an "updating"
-            screen and one automatic reboot.
+            **`-install.tar.gz`** — Complete install (~70MB). KFMon daemon
+            binaries, NickelMenu Qt plugin, KFMon-aware `on-animator.sh`,
+            Plato app, Settings, dictionaries, screensaver, and the
+            KoboRoot.tgz system bootstrap. Everything a Clara BW needs to
+            run Sangala. Triggers an "updating" screen and one automatic
+            reboot during install.
 
-            **`-update.tar.gz`** — Content (~80MB). Plato app, dictionaries,
-            and the EPUB library. No system changes, no reboot.
+            **`-update.tar.gz`** — Pre-built library folder structure only
+            (dot-prefixed `.STEM`, `.Humanities`, `.Enrichment`, etc.).
+            Library currently ships empty; deploy team sideloads EPUB
+            content per-device. Optional — only useful if you want the
+            empty folder structure pre-created on the device.
 
-            ### Manual install
+            ### Manual install (recommended)
             1. Connect Kobo via USB.
-            2. Extract `-install.tar.gz`. Copy its contents to the root of the
-               Kobo drive (be sure hidden files are visible — package contains
-               dot-prefixed folders).
-            3. Eject. Device shows "updating" and auto-reboots.
-            4. Reconnect. Extract `-update.tar.gz`. Copy contents to the drive
-               root.
-            5. Eject.
+            2. Extract `-install.tar.gz`. Copy its contents to the root of
+               the Kobo drive (enable hidden files in Explorer — package
+               contains dot-prefixed folders).
+            3. Click the taskbar USB-eject icon, wait for the "Safe To
+               Remove" notification, then unplug. Do NOT use the .ps1
+               installer's eject path on this Windows setup (it falls back
+               to a cooperative dismount that leaves the FAT dirty,
+               causing fsck to truncate the dictionary on next boot).
+            4. Device shows "updating" and auto-reboots into Plato.
+            5. **Wait at least 3 minutes** before reconnecting — Plato is
+               running `convert-dictionary.sh` in the background and
+               interrupting it leaves a corrupted dictionary file that
+               crashes Plato on next book-open (SIGBUS on truncated
+               mmap).
+            6. Reconnect and sideload your EPUB content to the
+               dot-prefixed library folders.
 
             ### Subsequent updates
-            Apply only `-update.tar.gz` — manual steps 4–5 above.
+            Apply `-install.tar.gz` again. Yes, it re-triggers the
+            "updating" screen and reboot, but it's the safe path. (The
+            `-update.tar.gz` does not contain Plato/Settings/dictionaries
+            anymore and is not usable as a Plato-version update.)
           files: |
             plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
             plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
