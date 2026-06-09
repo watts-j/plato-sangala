@@ -537,7 +537,7 @@ impl Default for Settings {
             inverted: false,
             sleep_cover: true,
             auto_share: false,
-            rotation_lock: None,
+            rotation_lock: Some(RotationLock::Portrait),
             button_scheme: ButtonScheme::Natural,
             auto_suspend: 30.0,
             auto_power_off: 3.0,

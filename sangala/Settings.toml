@@ -9,6 +9,10 @@ inverted = false
 sleep-cover = true
 auto-share = false
 button-scheme = "natural"
+# Lock the screen to portrait. The Clara BW has no gyroscope, so this only needs
+# to suppress the accidental two-finger rotate gesture; set to "landscape" or
+# remove the line to allow rotation again.
+rotation-lock = "portrait"
 auto-suspend = 30.0
 auto-power-off = 3.0
 time-format = "%-I:%M %p"

@@ -198,6 +198,18 @@ fn set_wifi(enable: bool, context: &mut Context) {
     }
 }
 
+// Whether a rotation that would produce `orientation` is permitted under the
+// current lock. Gates every rotation source (gyroscope, the two-finger rotate
+// gesture, menu entries) since they all funnel through `EntryId::Rotate`.
+fn rotation_allowed(rotation_lock: Option<RotationLock>, orientation: Orientation) -> bool {
+    match rotation_lock {
+        Some(RotationLock::Current) => false,
+        Some(RotationLock::Portrait) => orientation != Orientation::Landscape,
+        Some(RotationLock::Landscape) => orientation != Orientation::Portrait,
+        None => true,
+    }
+}
+
 #[derive(PartialEq)]
 enum ExitStatus {
     Quit,
@@ -521,15 +533,6 @@ pub fn run() -> Result<(), Error> {
 
                         if view.is::<RotationValues>() {
                             println!("Gyro rotation: {}", n);
-                        }
-
-                        if let Some(rotation_lock) = context.settings.rotation_lock {
-                            let orientation = CURRENT_DEVICE.orientation(n);
-                            if rotation_lock == RotationLock::Current ||
-                               (rotation_lock == RotationLock::Portrait && orientation == Orientation::Landscape) ||
-                               (rotation_lock == RotationLock::Landscape && orientation == Orientation::Portrait) {
-                                continue;
-                            }
                         }
 
                         tx.send(Event::Select(EntryId::Rotate(n))).ok();
@@ -892,6 +895,9 @@ pub fn run() -> Result<(), Error> {
                 rq.add(RenderData::new(view.id(), context.fb.rect(), UpdateMode::Full));
             },
             Event::Select(EntryId::Rotate(n)) if n != context.display.rotation && view.might_rotate() => {
+                if !rotation_allowed(context.settings.rotation_lock, CURRENT_DEVICE.orientation(n)) {
+                    continue;
+                }
                 wait_for_all(&mut updating, &mut context);
                 if let Ok(dims) = context.fb.set_rotation(n) {
                     raw_sender.send(display_rotate_event(n)).ok();
