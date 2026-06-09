@@ -117,22 +117,20 @@ jobs:
           # Clean up
           find shared-content -name '.gitkeep' -delete
 
-      - name: Assemble update package
+      - name: Assemble library package
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          UPDATE="plato-sangala-${TAG}-update"
-          mkdir -p "${UPDATE}"
-          # Update package is library content ONLY (dot-prefixed folders hidden
-          # from Nickel). The install package already places Plato + Settings +
-          # dictionaries + KFMon configs + screensaver via shared-content; the
-          # update package adds only the EPUB library on top, so re-copying
-          # shared-content here would just produce duplicate writes that risk
-          # interrupting first-boot dictionary conversion on Clara BW.
+          LIBRARY="plato-sangala-${TAG}-library"
+          mkdir -p "${LIBRARY}"
+          # Pure content. No install script, no system files. The deployer
+          # extracts this and drag-drops its contents onto the Kobo's root
+          # over USB to populate the library on a device that already has
+          # the install package applied.
           shopt -s dotglob
-          cp -R sangala/library-skeleton/* "${UPDATE}/"
+          cp -R sangala/library-skeleton/* "${LIBRARY}/"
           shopt -u dotglob
-          find "${UPDATE}" -name '.gitkeep' -delete
-          tar -czf "${UPDATE}.tar.gz" "${UPDATE}"
+          find "${LIBRARY}" -name '.gitkeep' -delete
+          tar -czf "${LIBRARY}.tar.gz" "${LIBRARY}"
 
       - name: Assemble install package
         run: |
@@ -141,13 +139,13 @@ jobs:
           cp -R shared-content "${INSTALL}"
           # Add KoboRoot.tgz for first-time system setup
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
-          # Pre-create the dot-prefixed library folder structure so Plato's
-          # cascading menu shows every category on first launch (even before
-          # the deployer sideloads EPUBs).
-          shopt -s dotglob
-          cp -R sangala/library-skeleton/* "${INSTALL}/"
-          shopt -u dotglob
-          find "${INSTALL}" -name '.gitkeep' -delete
+          # Pre-create the dot-prefixed library folder structure (empty) so
+          # Plato's cascading menu shows every category on first launch even
+          # before the separate library package is applied. Mirror the
+          # directory layout from library-skeleton; files are NOT copied
+          # (they belong in the -library.tar.gz artifact, not here).
+          (cd sangala/library-skeleton && find . -mindepth 1 -type d -print0) \
+            | xargs -0 -I {} mkdir -p "${INSTALL}/{}"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
       - name: Bundle installer scripts
@@ -158,13 +156,13 @@ jobs:
           cp sangala/installer/install-sangala-gui.ps1 install-sangala-gui.ps1
           zip install-sangala.zip install-sangala.ps1 install-sangala-gui.ps1
           echo "All release files:"
-          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-update.tar.gz install-sangala.zip
+          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-library.tar.gz install-sangala.zip
 
-      - name: Upload update artifact
+      - name: Upload library artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plato-sangala-${{ steps.tag.outputs.tag }}-update
-          path: plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
+          name: plato-sangala-${{ steps.tag.outputs.tag }}-library
+          path: plato-sangala-${{ steps.tag.outputs.tag }}-library.tar.gz
 
       - name: Upload install artifact
         uses: actions/upload-artifact@v4
@@ -198,47 +196,50 @@ jobs:
 
             ### Packages
 
-            **`-install.tar.gz`** — Complete install (~70MB). KFMon daemon
+            **`-install.tar.gz`** — System install (~70MB). KFMon daemon
             binaries, NickelMenu Qt plugin, KFMon-aware `on-animator.sh`,
             Plato app, Settings, dictionaries, screensaver, KoboRoot.tgz
-            system bootstrap, AND the empty dot-prefixed library folder
-            structure (`.STEM`, `.Humanities`, `.Enrichment`, `.Resources`,
-            `.Vocational`, `.Menu`). Single drag-drop deploys everything
-            Sangala needs. Triggers an "updating" screen and one automatic
-            reboot during install.
+            system bootstrap, and the empty dot-prefixed library folder
+            structure. Triggers an "updating" screen and one automatic
+            reboot. This is what makes the device run Sangala; no EPUB
+            content.
 
-            **`-update.tar.gz`** — Redundant in v2.53+ (install package
-            already includes the library folder structure). Kept in the
-            release for backwards compatibility with any tooling that
-            still expects the artifact. Do not apply.
+            **`-library.tar.gz`** — Library content. Contains the EPUB
+            collection laid out under the dot-prefixed category folders
+            (`.STEM/Science/Biology/...`, etc.). Pure content — no
+            install script, no system files. Extract and drag-drop the
+            contents onto a device that already has the install package
+            applied.
 
-            ### Manual install (recommended)
-            1. Connect Kobo via USB.
-            2. Extract `-install.tar.gz`. Copy its contents to the root of
-               the Kobo drive (enable hidden files in Explorer — package
-               contains dot-prefixed folders).
+            ### Install procedure
+            1. Connect Kobo via USB. Tap "Connect USB" when prompted.
+            2. Extract `-install.tar.gz`. Copy its contents to the root
+               of the Kobo drive (enable hidden files in Explorer —
+               package contains dot-prefixed folders).
             3. Click the taskbar USB-eject icon, wait for the "Safe To
                Remove" notification, then unplug. Do NOT use the .ps1
                installer's eject path on this Windows setup (it falls back
                to a cooperative dismount that leaves the FAT dirty,
-               causing fsck to truncate the dictionary on next boot).
+               causing fsck to truncate the dictionary on next boot —
+               see Lesson #42 in CLAUDE-STATE).
             4. Device shows "updating" and auto-reboots into Plato.
-            5. **Wait at least 3 minutes** before reconnecting — Plato is
-               running `convert-dictionary.sh` in the background and
+            5. **Wait at least 3 minutes** before reconnecting — Plato
+               is running `convert-dictionary.sh` in the background and
                interrupting it leaves a corrupted dictionary file that
                crashes Plato on next book-open (SIGBUS on truncated
                mmap).
-            6. Reconnect and sideload your EPUB content to the
-               dot-prefixed library folders.
+            6. Reconnect via USB. Extract `-library.tar.gz` and copy its
+               contents to the root of the Kobo drive. Eject the same
+               clean way as step 3.
 
             ### Subsequent updates
-            Apply `-install.tar.gz` again. Yes, it re-triggers the
-            "updating" screen and reboot, but it's the safe path. (The
-            `-update.tar.gz` does not contain Plato/Settings/dictionaries
-            anymore and is not usable as a Plato-version update.)
+            Apply `-install.tar.gz` again (re-triggers the "updating"
+            screen and reboot, which is the safe path). Library content
+            is preserved across install reapplications because the
+            install package ships only empty folder structure.
           files: |
             plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
-            plato-sangala-${{ steps.tag.outputs.tag }}-update.tar.gz
+            plato-sangala-${{ steps.tag.outputs.tag }}-library.tar.gz
             install-sangala.zip
           draft: false
           # Tag releases ship as pre-release by default; manually promote to

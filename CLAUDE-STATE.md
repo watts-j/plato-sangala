@@ -18,7 +18,8 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
-- **v2.53-sangala** — Install package now also includes the dot-prefixed library folder structure (`.STEM/`, `.Humanities/`, etc.) pre-created. Single-package deploy: no more "Phase 2" reconnect on fresh install. Update package retained in releases but redundant.
+- **v2.54-sangala** — Reintroduces a separate library content package as `-library.tar.gz`, replacing the now-removed `-update.tar.gz`. Install package keeps the empty dot-folder structure only (built via `find -type d | xargs mkdir -p`, no file copy). Library package contains the EPUB collection committed to `sangala/library-skeleton/`. Deploy is now "install first, library second" — but with the library phase being pure content copy, there's no overlap with the system install's first-boot conversion. Replaces v2.53's "single-package" claim, which was technically true but precluded shipping library content via the release at all.
+- **v2.53-sangala** — Install package includes the empty dot-prefixed library folder structure (`.STEM/`, `.Humanities/`, etc.) pre-created. Single-package deploy (no library content). Update package retained but redundant. Superseded by v2.54's split for projects that ship library content via the release.
 - **v2.52-sangala** — Build workflow change: split install/update package responsibilities cleanly. Install = everything except library (Plato + system + KFMon configs + KoboRoot.tgz + screensaver + dictionaries + Settings). Update = library-only (just the empty dot-folder structure since library-skeleton is empty). Fixes the Phase-2-interrupts-dictionary-conversion crash (Lesson #42). Release notes updated to point deployers at manual install with eject-via-taskbar.
 - **v2.51-sangala** — Frontlight Save/Guess buttons and presets list removed. Frontlight window is now just sliders (intensity, plus warmth on natural-light devices). `LightPreset` data type and Settings field retained for backwards compat with on-device Settings.toml files; just not surfaced in UI. `TogglePresetMenu` event handler in app.rs is now unreachable orphan.
 - **v2.50-sangala** — UI: 12-hour clock display (`time-format = "%-I:%M %p"`), restructured Set Clock menu (AM/PM submenu → Hour 1-12 → Minute 0-9 / 10-19 / 20-29 / 30-39 / 40-49 / 50-59 sub-buckets with per-minute entries). Burger menu trimmed to System Info / Dictionary / Connect USB (Enable WiFi, Applications submenu, Calculator, Power Off removed). Power-off is now hardware-button only or via the 3-minute (idle → suspend) + 3-day (suspend → power-off) timer chain. Library skeleton emptied (all 49 EPUBs removed); content is sideloaded per-device. No architecture changes from v2.49.
@@ -63,9 +64,9 @@ Avoid both. Specifically:
 
 **v2.49 shipped and is confirmed working** via multi-power-cycle test on Clara BW (2026-05-25). It is the first reliably-stable release in the project's history. The factory-reset bug is no longer the active blocker.
 
-**v2.50–v2.53 shipped** with UI polish, frontlight cleanup, package-structure rework, and library-folder pre-creation in the install package. No architectural change from v2.49; KFMon-based launch remains the factory-reset fix.
+**v2.50–v2.54 shipped** with UI polish, frontlight cleanup, package-structure rework, library-folder pre-creation, and (v2.54) a separate library content package. No architectural change from v2.49; KFMon-based launch remains the factory-reset fix.
 
-Next tag should be **v2.54-sangala** for any further code change. Patch-level bumps (e.g., v2.53.1) are appropriate for content-only updates such as adding/removing EPUBs.
+Next tag should be **v2.55-sangala** for any further code change. Patch-level bumps (e.g., v2.54.1) are appropriate for content-only updates such as adding/removing EPUBs in the library package.
 
 If a no-fix content-only update is wanted (e.g., more EPUBs added), it can ship as v2.48.2 with a release-note warning that the factory-reset bug is unresolved. But this just propagates the problem to more devices, so it's not recommended.
 
@@ -83,13 +84,21 @@ The PowerShell installers prompt for the reader's name on a fresh install and pa
 
 ## Package Structure
 
-**As of v2.53+:** install package is the complete deploy. Update package is published-but-redundant.
+**As of v2.54+:** install = system, library = content. Two-phase deploy by design (system first, library second), but the second phase is just file copy — no install logic, no eject-while-mid-conversion risk.
 
-- **`-install.tar.gz`** — Complete install (~70 MB). KFMon daemon + NickelMenu plugin + KFMon-aware `on-animator.sh` + Plato app + `Settings.toml` + dictionaries + screensaver + `Kobo eReader.conf` + KoboRoot.tgz system bootstrap + the empty dot-prefixed library folder structure (`.STEM/`, `.Humanities/`, etc.). Single drag-drop deploys everything Sangala needs on a fresh device. Triggers Nickel's "updating" screen and one auto-reboot.
-- **`-update.tar.gz`** — Redundant in v2.53+. Still produced for tooling backwards compatibility but contains the same dot-folder structure now included in install. Do not apply.
+- **`-install.tar.gz`** — System install (~70 MB). KFMon daemon + NickelMenu plugin + KFMon-aware `on-animator.sh` + Plato app + `Settings.toml` + dictionaries + screensaver + `Kobo eReader.conf` + KoboRoot.tgz system bootstrap + the empty dot-prefixed library folder structure. Triggers Nickel's "updating" screen and one auto-reboot. No EPUB content.
+- **`-library.tar.gz`** — EPUB collection laid out under the dot-prefixed category folders. Pure content. No install script, no system files. Extract and drag-drop onto a device that already has the install package applied. Built from `sangala/library-skeleton/` in the repo. Subject to GitHub's 100 MB per-file cap on commit.
 - **`install-sangala.ps1`** — Separate download. PowerShell installer script. **Not recommended for production deploy on the current Windows setup** — see Lesson #42 / fsck-truncation chain.
 
-**Recommended install flow (v2.53+):** drag-drop install package contents, eject via Windows taskbar, **wait 3 min** for first-boot dictionary conversion to finish, sideload EPUBs into the (now pre-created) dot-prefixed folders. No second package needed.
+**Recommended install flow (v2.54+):**
+1. Drag-drop `-install.tar.gz` contents to the device.
+2. Eject via Windows taskbar.
+3. Device reboots into Plato; wait 3 min for first-boot dictionary conversion to finish.
+4. Reconnect via USB.
+5. Drag-drop `-library.tar.gz` contents to the device.
+6. Eject via Windows taskbar.
+
+Library is now a clean second pass — no overlapping writes with the system install. Future EPUB updates: just re-extract the latest `-library.tar.gz` over the device's existing content.
 
 **Subsequent updates:** re-apply the install package (re-triggers Nickel's "updating" screen and reboot, which is fine). The update package no longer contains Plato/Settings/dictionaries, so it cannot be used as a Plato-version update.
 
