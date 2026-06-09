@@ -14,7 +14,20 @@ permissions:
   contents: write
 
 env:
-  TOOLCHAIN_URL: "https://releases.linaro.org/components/toolchain/binaries/4.9-2017.01/arm-linux-gnueabihf/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz"
+  # ARM cross-toolchain — Linaro 4.9.4-2017.01, hard-float (gnueabihf).
+  # PINNED ON PURPOSE: its glibc matches the Kobo's old glibc. Do NOT bump to a
+  # newer toolchain — a newer glibc produces binaries that won't launch on the
+  # device (the dynamic linker rejects unknown GLIBC_* symbol versions).
+  #
+  # Self-hosted as a release asset on THIS repo because Linaro's original host
+  # now returns 403 for these legacy binaries (program EOL'd, handed to Arm).
+  # The build's correctness must not depend on a third party. Trust is anchored
+  # to TOOLCHAIN_SHA256, not the host: a corrupt or tampered download fails the
+  # build. To (re)provision: download the exact tarball once (Arm's "Legacy
+  # Linaro GNU Toolchains" archive), verify it, upload it as an asset on the
+  # "build-deps" release, and set TOOLCHAIN_SHA256 below to its sha256sum.
+  TOOLCHAIN_URL: "https://github.com/watts-j/plato-sangala/releases/download/build-deps/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz"
+  TOOLCHAIN_SHA256: "22914118fd963f953824b58107015c6953b5bbdccbdcf25ad9fd9a2f9f11ac07"
 
 jobs:
   build:
@@ -29,18 +42,37 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget jq patchelf
 
-      - name: Cache Linaro toolchain
+      # Cache is only an optimization. The hash-pinned download below is the
+      # source of truth, so an evicted cache can no longer break the build.
+      - name: Cache cross-toolchain
         id: cache-toolchain
         uses: actions/cache@v4
         with:
           path: toolchain
           key: linaro-gcc-4.9.4-2017.01
 
-      - name: Download Linaro toolchain
+      - name: Download cross-toolchain (self-hosted, hash-pinned)
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        shell: bash
         run: |
+          set -euo pipefail
+          if [ "$TOOLCHAIN_SHA256" = "REPLACE_WITH_SHA256_OF_THE_VERIFIED_TARBALL" ]; then
+            echo "::error::TOOLCHAIN_SHA256 is unset. Upload the toolchain to the 'build-deps' release and set its sha256 in build-and-release.yml (see CLAUDE-STATE)."
+            exit 1
+          fi
           mkdir -p toolchain
-          wget -q "$TOOLCHAIN_URL" -O toolchain.tar.xz
+          # Retry to ride out transient network blips.
+          ok=
+          for attempt in 1 2 3 4 5; do
+            if wget -q --tries=2 --timeout=30 "$TOOLCHAIN_URL" -O toolchain.tar.xz; then
+              ok=1; break
+            fi
+            echo "Download attempt $attempt failed; retrying in $((attempt * 5))s..."
+            sleep $((attempt * 5))
+          done
+          [ -n "$ok" ] || { echo "::error::toolchain download failed from $TOOLCHAIN_URL"; exit 1; }
+          # Integrity gate: trust the hash, not the host. Fail closed.
+          echo "${TOOLCHAIN_SHA256}  toolchain.tar.xz" | sha256sum -c -
           tar -xf toolchain.tar.xz --strip-components=1 -C toolchain
           rm toolchain.tar.xz
 
