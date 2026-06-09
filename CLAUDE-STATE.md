@@ -130,9 +130,11 @@ This shows every parse error in one pass instead of fixing one and rediscovering
 
 ## Branch
 
-**`sangala-v2.48-base`** (created 2026-05-23 from `v2.48-sangala` tag; rollback from the `claude/customize-plato-ui-1Edbm` branch that had carried v2.49-v2.53 work). Tip as of 2026-05-25: includes the snapshot/verify tools under `tools/` and the build-workflow VERSION-stamp commit. The original branch with the discarded 20 commits is preserved at `claude/customize-plato-ui-1Edbm` (do not push there). **Always confirm the working branch with `git branch --show-current` at session start — see Lesson #33; this session's tools commits initially went to the wrong branch because CLAUDE-STATE's old Branch line was trusted instead.**
+**`main`** is the canonical trunk and the GitHub default branch. It is the former `sangala-v2.48-base` (created 2026-05-23 from the `v2.48-sangala` tag, carried the KFMon retrofit and everything through v2.54), renamed on 2026-06-09 as part of a branch cleanup. Fresh clones and new sessions land here automatically because it is the default.
 
-The KFMon retrofit was merged into `sangala-v2.48-base` on 2026-05-25 after the v2.19 device test passed. The harness session branch `claude/laughing-darwin-hHYv2` on origin is a stale alias for whatever commit it last pointed to; ignore it. The working branch is `sangala-v2.48-base`.
+**Branch cleanup (2026-06-09).** The repo had accumulated stale branches that caused new sessions to start from the wrong place — the GitHub default was `sangala-reader` at an ancient commit (`a9a74fd`, 121 commits behind), and `master` carried a stale `CLAUDE.md` pointing sessions at the discarded experimental branch. Resolved by: (1) renaming the trunk to `main` and making it the default; (2) deleting the dead branches `sangala-reader`, `claude/funny-fermat-oufn2k`, `claude/laughing-darwin-hHYv2`, and `master` (all fully merged or trivial); (3) archiving the deliberately-discarded experiment `claude/customize-plato-ui-1Edbm` (27 unique commits) as tag **`archive/customize-plato-ui`** and deleting the branch. A short `CLAUDE.md` was added to `main` so the harness auto-loads session orientation.
+
+The KFMon retrofit was merged into the trunk on 2026-05-25 after the v2.19 device test passed. **Always confirm the working branch with `git branch --show-current` at session start (Lesson #33/#44).** If you ever need the discarded v2.49–v2.53 experiment work back, it's at the `archive/customize-plato-ui` tag — `git checkout -b recover archive/customize-plato-ui`.
 
 ## User Working Directory
 
