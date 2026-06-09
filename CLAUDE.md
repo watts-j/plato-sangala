@@ -4,18 +4,28 @@ Customized Plato eReader build for **Kobo Clara BW** devices in educational depl
 
 ## Canonical branch
 
-**`main`** is the trunk and the GitHub default. Work here. (It is the former
-`sangala-v2.48-base`, renamed 2026-06-09.) Confirm at session start:
+**`main`** is the trunk and the GitHub default — the only branch on GitHub. (It
+is the former `sangala-v2.48-base`, renamed 2026-06-09.) Confirm at session
+start:
 
 ```
-git branch --show-current   # expect: main
+git branch --show-current   # terminal: main | web: claude/<session>
 git status                  # expect: clean
 git log -1 --format='%h %s' # expect: the latest known push
 ```
 
-If a fresh clone lands you somewhere else (a stale `claude/*` branch, an ancient
-commit with no `CLAUDE-STATE.md`), `git fetch origin && git checkout main`
-before doing anything. See Lesson #44.
+**Which surface are you on?** It changes how you branch (Lesson #46):
+
+- **Terminal / local:** work directly on `main`. If a fresh clone lands you on
+  an ancient commit with no `CLAUDE-STATE.md`, run
+  `git fetch origin && git checkout main` before doing anything (Lesson #44).
+- **Claude Code on the web:** the platform *always* creates a per-session
+  `claude/*` branch off `main`'s current tip and the git proxy only lets you
+  push **that** branch. This is by design — **not** the stale-clone problem, and
+  **do not** `git checkout main` (it strands you on a branch you can't push).
+  Verify your `claude/*` branch sits at `main`'s tip (`git log -1` matches the
+  last known push), work there, and hand off. The user fast-forwards/merges the
+  branch into `main` on their machine afterward.
 
 ## Read next
 

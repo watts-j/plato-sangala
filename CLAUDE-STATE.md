@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. See the two Session-End Handoffs dated 2026-06-09 below.)
+Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. 2026-06-09 follow-up: established that the per-session `claude/*` branch on Claude-Code-on-web is unavoidable platform behavior, not a repo bug (Lesson #46); adopted a merge-to-main workflow and removed the harmful "git checkout main on web" instruction from `CLAUDE.md`. See the three Session-End Handoffs dated 2026-06-09 below.)
 
 ## Working Conventions (read first)
 
@@ -492,6 +492,8 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 
 45. **The "new session can't find the right place" problem was a wrong default branch, not branch divergence — and merge/rebase was the wrong tool for it.** (2026-06-09.) GitHub's default branch was `sangala-reader` (ancient `a9a74fd`, 121 commits behind the trunk), and `master` carried a stale `CLAUDE.md` pointing sessions at the discarded `claude/customize-plato-ui-1Edbm` branch. Fresh clones/sessions inherit the repo's default branch, so every new session started 121 commits in the past with no `CLAUDE-STATE.md`. Nothing needed merging (only the deliberately-discarded experiment had unique commits, and those were never wanted in the trunk). Fix: rename the trunk to `main`, set it as the GitHub default, delete the dead branches, archive the one branch with unique commits as the `archive/customize-plato-ui` tag, and add a short auto-loaded `CLAUDE.md` on `main` so the harness orients every session. **Operational constraint discovered:** the Claude-on-web managed git proxy returns HTTP 403 on tag pushes AND ref deletions — it only allows creating/updating branches. So changing the default branch (a repo setting), pushing tags, and deleting branches all have to be done by the user from their own machine / GitHub UI. Don't burn retries on these from a web session; hand them to the user with exact commands.
 
+46. **The recurring "new session lands on a `claude/*` branch" is Claude-Code-on-web platform behavior, not a git problem — it cannot be fixed in the repo, and Lesson #45's "repoint the environment to main" guess was wrong.** (2026-06-09.) Every web session "starts from a fresh clone" and the platform creates a *new per-session working branch* (`claude/<name>`) off the repo default (`main`), then the git proxy "restricts git push operations to the current working branch" — so a web session can only ever push its own `claude/*` branch, never `main` directly (this is the same proxy that 403s on tag pushes / ref deletions, Lesson #45). Confirmed against the current docs at code.claude.com/docs/en/claude-code-on-the-web. There is **no repo-config, `CLAUDE.md`, or environment setting that disables the per-session branch** — the only configurable knob is the *base* branch it forks from, which is already `main`. Two consequences: (a) the old `CLAUDE.md` instruction to `git fetch origin && git checkout main` on session start is *actively harmful on web* — it moves you off the only pushable branch; it's correct only in a local/terminal checkout. (b) The `claude/*` branch is `main`'s exact tip with zero divergence, so the agreed workflow is **merge-to-main**: the web session works on its `claude/*` branch and the user fast-forwards/merges it into `main` from their own machine afterward (a clean FF as long as `main` hasn't advanced elsewhere). To commit *directly* to `main` with no per-session branch, work in the terminal/CLI instead of the web surface. Stop treating a fresh `claude/*` branch as a bug to "fix" — verify it sits at `main`'s tip, work there, hand off.
+
 ## Session-End Handoff (2026-06-09, UI polish + package rework + library workflow)
 
 ### Status
@@ -585,9 +587,33 @@ Exactly **one branch — `main`** (the default) — plus the `archive/customize-
 
 1. **4-check (Lesson #44):** `pwd` → `git branch --show-current` (expect `main`) → `git status` → `git log -1 --format='%h %s'`. If a fresh clone drops you on a `claude/*` branch or an ancient commit with no `CLAUDE-STATE.md`, run `git fetch origin && git checkout main`. The auto-loaded `CLAUDE.md` should also point you here.
 2. HEAD on `main` should be this branch-cleanup handoff commit, on top of `28cdf95 branch cleanup: rename trunk to main, add CLAUDE.md orientation pointer`.
-3. If extra branches ever reappear at session start, check whether the Claude-on-web **environment is pinned** to a base branch other than the repo default — repoint it to `main`.
+3. ~~If extra branches ever reappear at session start, check whether the Claude-on-web environment is pinned to a base branch other than the repo default — repoint it to `main`.~~ **Corrected by Lesson #46:** a per-session `claude/*` branch on web is unavoidable platform behavior, not a misconfiguration. There's no setting to disable it; the workflow is merge-to-main (see the 2026-06-09 web-branch-reality handoff below).
 4. Nothing functional changed: the v2.54+ manual drag-drop deploy flow and the don't-propose list (Calculator / Power Off / Enable WiFi / Frontlight presets, Nickel, the PS installer for production, any pre-v2.49 version as stable) all still apply.
 
 ### Local artifacts note
 
 The user's local clone has untracked installer build outputs under `sangala/installer/` (v2.48 `-install`/`-update` tarballs, their extracted dirs, `install-sangala.log`). Harmless, untracked, not on any branch. A `.gitignore` rule for them was offered but not requested this session.
+
+## Session-End Handoff (2026-06-09, web-branch reality + merge-to-main workflow)
+
+### Status
+
+Docs-only. No code or release changes; v2.49–v2.54 and the deploy flow are unchanged. This session corrected the recurring "new session lands on the wrong branch" misdiagnosis that the prior branch-cleanup session believed it had solved.
+
+### What landed
+
+- **Root cause established (Lesson #46):** the per-session `claude/*` branch is *Claude-Code-on-web platform behavior*, confirmed against the current docs — every web session starts from a fresh clone on a new working branch off `main`, and the git proxy only lets that branch be pushed. It is **not** a git/repo problem and **cannot** be disabled by repo config, `CLAUDE.md`, or environment settings. GitHub itself is clean: one branch, `main` @ `1a8386d`.
+- **`CLAUDE.md` "Canonical branch" section rewritten** to split terminal vs. web behavior and to *remove the harmful "`git checkout main` on session start" instruction for web* (it strands a web session on an unpushable branch).
+- **Lesson #45's parting guess corrected** (the "repoint the environment to main" note) — superseded by Lesson #46.
+- **Workflow decided with the user: merge-to-main.** Keep using web; each session works on its `claude/*` branch (= `main`'s tip), and the user fast-forwards/merges it into `main` from their machine afterward. To commit straight to `main` with no per-session branch, use the terminal/CLI instead.
+
+### End state
+
+- GitHub: one branch, `main` @ `1a8386d` (unchanged tip; this handoff's commit lives on the web session's `claude/*` branch awaiting merge to `main`).
+- This session ran on web branch `claude/jolly-thompson-18efpa`, forked at `main`'s tip.
+
+### Recommended first actions for next session
+
+1. **4-check (Lesson #44)** — but read Lesson #46 first: on web, a `claude/*` branch at `main`'s tip is *normal*, not the stale-clone failure. Don't `git checkout main` on web.
+2. **To land this session's doc updates on `main`:** from your local clone — `git fetch origin && git checkout main && git merge --ff-only origin/claude/jolly-thompson-18efpa` (clean FF since it forked from `main`'s tip), then `git push origin main`. The web proxy can't push `main` (Lesson #45/#46), so this step is yours.
+3. Nothing functional changed: v2.54+ manual drag-drop deploy flow and the don't-propose list all still apply.
