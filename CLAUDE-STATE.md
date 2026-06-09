@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-05-25 (KFMon retrofit landed on `claude/laughing-darwin-hHYv2`, ahead of `sangala-v2.48-base`. v2.19 confirmed surviving 10+ multi-power-cycles on Clara BW. Boot-1-vs-boot-2 snapshot diff on v2.48.1 showed zero Nickel writes between boots — subsequent-boot `plato-autostart.sh` kills Nickel within ~1-2 s, so the bootloader's healthy-boot marker is never written. Retrofit ports v2.19's KFMon + NickelMenu launcher infrastructure into sangala-v2.48-base, layered under Sangala's v2.48 feature set.)
+Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. See Session-End Handoff (2026-06-09) below.)
 
 ## Working Conventions (read first)
 
@@ -142,7 +142,7 @@ The KFMon retrofit was merged into `sangala-v2.48-base` on 2026-05-25 after the 
 
 Kobo Clara BW (model spaBW/spaBWTPV), 1072x1448 @ 300 DPI. **Hardware buttons: power only.** No LIGHT button, no pinhole reset. Do not invent a button-combo factory-reset gesture from memory of other Kobos — earlier sessions repeatedly wrote "hold LIGHT during power-on" and were corrected. If you need the reset gesture for a recovery instruction, ask the user.
 
-## Architecture (current — `claude/laughing-darwin-hHYv2`, post-KFMon-retrofit)
+## Architecture (current — `sangala-v2.48-base` tip, post-KFMon-retrofit and ongoing through v2.54)
 
 - Auto-launch: **KFMon daemon + `plato-autostart.sh`, both running in parallel** (v2.19's proven-on-Clara-BW pattern). `on-animator.sh` starts KFMon (`/usr/local/kfmon/bin/kfmon`) and forks `plato-autostart.sh` (`pidof nickel + sleep 10`). KFMon's `plato.ini` config has `on_boot = true`, so when Nickel finishes booting and its scanner indexes `.adds/plato/launch.png`, KFMon fires `plato.sh`. Whichever launcher fires first wins; the other no-ops because `plato.sh`'s first action is `killall -TERM nickel`. The key difference vs. pre-retrofit: Nickel runs its full boot sequence before any kill, so it writes whatever bootloader-side healthy-boot marker we couldn't identify via filesystem snapshots.
 - KFMon also installs `libnm.so` (NickelMenu Qt plugin) and ships `.adds/nm/{kfmon, plato}` menu items, giving a manual fallback to launch Plato from Nickel's burger menu if `on_boot` ever fails to fire.
@@ -482,4 +482,79 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 
 41. **Reset-on-power-on confirms the trigger is bootloader-side, not userspace-side. Filesystem snapshots can't surface bootloader-side markers.** (2026-05-25 user observation: boot 2 went straight to factory-reset / setup wizard on power-on; Plato never launched.) That means the decision to factory-reset is made before any `/mnt/onboard` file system is even mounted. U-Boot reads its watchdog counter from raw MMC or a hidden partition (`mmcblk0p1`/`p2`-style), increments on every unhealthy boot, and triggers recovery at the threshold. Our `tools/snapshot-device.ps1` only sees `/mnt/onboard` content, so it can't catch the marker — it can only confirm what Nickel did or didn't do in userspace (which is what gave us Lesson #37). For future device-state inspection of bootloader-readable areas, we'd need ssh/telnet on-device and `dd` of raw MMC sectors. Out of scope while the KFMon retrofit is in test.
 
-42. **The pre-v2.52 two-package install design ships duplicate `.adds/` + `.kobo/` content in Phase 2, which on Clara BW interrupts the still-running `convert-dictionary.sh`, corrupts the dictionary, and crashes Plato on book-open with SIGBUS.** (2026-05-25, after v2.51 deploy to 5 devices: 4/5 crashed.) Failure chain: (1) Phase 1 installs, device reboots, KFMon launches Plato, `plato.sh` forks `convert-dictionary.sh` in background (~1-2 min on Clara BW). (2) User reconnects for Phase 2 within that window. USB-connect remounts /mnt/onboard for USBMS, interrupting `convert-dictionary.sh` mid-`dictfmt`. Partial `.dict` (106 MB) left on disk. (3) User copies Phase 2 (which RE-copies `.adds/plato/dictionaries/*` source files on top of the partial conversion state). (4) User ejects; FAT is dirty from the interrupted write. (5) On next boot, fsck.fat sees the cluster-chain mismatch and truncates `.dict` to 75 MB to match. (6) Plato's dictionary loader mmaps `.dict`, accesses pages past the truncation, gets SIGBUS, crashes. Falls back to Nickel, KFMon re-fires, Plato re-crashes immediately on same file → infinite crash loop. Diagnosis confirmed via `info.log` showing exactly this fsck output + `Bus error`. The 1/5 device that worked got lucky on conversion-vs-Phase-2 timing. **Fix**: v2.52 splits the package responsibilities cleanly — install = everything-not-library, update = library-only, no duplicate `.adds/`+`.kobo/` writes. Recovery for affected devices: delete `.adds/plato/dictionaries/` on device, restore from install package, eject cleanly via taskbar, reboot, wait 3+ min for fresh conversion.
+42. **The pre-v2.52 two-package install design ships duplicate `.adds/` + `.kobo/` content in Phase 2, which on Clara BW interrupts the still-running `convert-dictionary.sh`, corrupts the dictionary, and crashes Plato on book-open with SIGBUS.** (2026-05-25, after v2.51 deploy to 5 devices: 4/5 crashed.) Failure chain: (1) Phase 1 installs, device reboots, KFMon launches Plato, `plato.sh` forks `convert-dictionary.sh` in background (~1-2 min on Clara BW). (2) User reconnects for Phase 2 within that window. USB-connect remounts /mnt/onboard for USBMS, interrupting `convert-dictionary.sh` mid-`dictfmt`. Partial `.dict` (106 MB) left on disk. (3) User copies Phase 2 (which RE-copies `.adds/plato/dictionaries/*` source files on top of the partial conversion state). (4) User ejects; FAT is dirty from the interrupted write. (5) On next boot, fsck.fat sees the cluster-chain mismatch and truncates `.dict` to 75 MB to match. (6) Plato's dictionary loader mmaps `.dict`, accesses pages past the truncation, gets SIGBUS, crashes. Falls back to Nickel, KFMon re-fires, Plato re-crashes immediately on same file → infinite crash loop. Diagnosis confirmed via `info.log` showing exactly this fsck output + `Bus error`. The 1/5 device that worked got lucky on conversion-vs-Phase-2 timing. **Fix**: v2.52 splits the package responsibilities cleanly — install = everything-not-library, update = library-only, no duplicate `.adds/`+`.kobo/` writes. v2.54 renames the library package to `-library.tar.gz` for clarity. Recovery for affected devices: delete `.adds/plato/dictionaries/` on device, restore from install package, eject cleanly via taskbar, reboot, wait 3+ min for fresh conversion.
+
+43. **Search-verify before stating vendor UI paths or menu locations.** (2026-06-09.) Confidently misstated Calibre's "Polish books" location from memory (claimed it was in the default right-click menu — wrong, has to be added via Toolbars & menus). Then confidently misstated that Polish does aggressive image compression (wrong — Polish is lossless-only; lossy compression is in Edit Book → Tools → Compress images). Both took 2-3 corrections from the user before resolving. A single WebSearch call would have caught either error. Going forward: for any UI-flow question on third-party software (Calibre, Kobo's Nickel, Windows utilities), call WebSearch with a current-year query before stating menu paths, even if confident from memory. The cost of pre-emptive verification (one search) is much lower than the cost of user-side iteration (multiple back-and-forths plus loss of trust).
+
+44. **"New computer" or unexpected clone state — verify with `git branch --show-current` + `git log -1` before running any add/commit/push commands.** (2026-06-09.) User said "I am on a new computer again," ran a `git clone` that silently failed (directory already existed), and ended up doing work in a stale clone on the WRONG branch (`claude/customize-plato-ui-1Edbm` — the discarded experimental branch from May, deleted from session memory two handoffs ago). The robocopy step succeeded; the subsequent `git add` then surfaced a half-done merge from before, mixed with the new library content. Recovery sequence that worked: `git merge --abort; git fetch origin; git checkout -B sangala-v2.48-base origin/sangala-v2.48-base; git reset --hard origin/sangala-v2.48-base`. Note that `git reset --hard` then wiped the robocopied EPUBs (they were treated as tracked content from the old branch); user had to re-robocopy. **For future "new computer" interactions, do not run any state-changing git commands until verifying**: (1) `pwd` (correct path), (2) `git branch --show-current` (correct branch), (3) `git status` (no half-done merges or pre-existing staged changes), (4) `git log -1 --format=%s` (HEAD commit matches the latest known push from prior sessions). All four green = safe to proceed. Any red = recovery first.
+
+## Session-End Handoff (2026-06-09, UI polish + package rework + library workflow)
+
+### Status
+
+**Factory-reset bug is fixed.** v2.49 retrofit confirmed working in production (multi-cycle, real-use). All releases through v2.54 are shipped (pre-release on GitHub). v2.54 ships an EPUB library package populated from the user's F:\Library; install package ships the empty dot-folder structure only.
+
+### What landed this session
+
+**Tags shipped (pre-released on GitHub):**
+- v2.49-sangala — KFMon retrofit. Restores v2.19's KFMon + NickelMenu launcher infrastructure. Factory-reset bug fix.
+- v2.50-sangala — UI polish: 12-hour clock (`time-format = "%-I:%M %p"`), restructured Set Clock menu (AM/PM → Hour 1-12 → Minute 0-9/10-19/…/50-59 buckets), trimmed burger menu (System Info / Dictionary / Connect USB only). Library skeleton emptied (49 EPUBs removed); content sideloaded per-device.
+- v2.51-sangala — Removed Frontlight Save/Guess buttons and presets list. Frontlight window is just sliders.
+- v2.52-sangala — Build workflow split: install package = everything-not-library, update package = library-only. Fixes Lesson #42 (Phase-2-interrupts-conversion crash).
+- v2.53-sangala — Install package pre-creates the empty dot-folder library structure. Single-package deploy for repos that don't ship library content.
+
+- v2.54-sangala — Workflow renames `-update.tar.gz` to `-library.tar.gz` (EPUB-only artifact). Install package still ships empty dot-folder structure. User populated the library from F:\Library (commit `61802e3`) and pushed the tag; release built and published as pre-release.
+
+**Code/architecture summary:**
+- KFMon-based launching restored (system partition: KFMon daemon + NickelMenu Qt plugin + KFMon-aware `on-animator.sh` + v2.19's simpler `plato-autostart.sh`; user partition: `.adds/kfmon/`, `.adds/nm/`, `.adds/plato/launch.png` 1×1 PNG trigger).
+- Settings.toml time-format changed to 12-hour `%-I:%M %p`.
+- Clock-set menu uses new EntryId variants `SetClockHour12(u32)`, `SetClockMinute(u32)`, `SetClockAmPm(bool)` (renamed from old `SetTimeHour`/`SetTimeMinute`).
+- Burger menu (`view/common.rs::toggle_main_menu`) trimmed; Calculator still in binary but unreachable from menu.
+- Frontlight (`view/frontlight.rs`) is sliders-only; preset infrastructure left as orphan code (`LightPreset` type, `frontlight_presets` settings field, `TogglePresetMenu` event handler all retained for serde compat but unreachable).
+
+### Confirmed working
+
+- v2.19's KFMon launcher pattern (KFMon's `on_boot=true` racing v2.19's `plato-autostart.sh sleep 10`): 10+ multi-power-cycles on Clara BW. Lesson #13's "racing launchers are fatal" claim disproved (Lesson #39).
+- v2.49 retrofit: "working reliably" per user. Active production deployment.
+- v2.50 / v2.51 / v2.52 / v2.53: manually-installed and confirmed running on user's devices.
+- Manual drag-drop install procedure (extract install tarball → Explorer copy → taskbar eject → wait 3 min → reconnect → library copy → taskbar eject) is the safe deployment path.
+
+### Confirmed broken
+
+- **PS installer (`install-sangala.ps1`) on user's Windows setup.** PnP eject path is vetoed by some background process (Windows Search Indexer, antivirus, OneDrive, or Explorer window on D:); installer falls back to `Win32_Volume.Dismount (cooperative)` which leaves FAT dirty. On next boot, fsck.fat truncates dictionary.dict; Plato SIGBUSes on first book-open. Failure mode is identical to Lesson #42. **Do not recommend the PS installer for production.** The .ps1 still exists in repo and works on some Windows setups; just not this user's. Code-side hardening (loop-retry CM_Request, refuse cooperative fallback, etc.) is possible but deprioritized — user prefers manual install.
+- All pre-v2.49 versions on multi-power-cycle (v2.32 through v2.48.1 — Lesson #31). Don't propose deploying any of those.
+
+### Recommended install flow (v2.54+)
+
+1. Connect Kobo, tap Connect USB.
+2. Extract `plato-sangala-vX.Y-sangala-install.tar.gz`. Drag-drop the contents (including hidden `.kobo/` and `.adds/`) to the Kobo drive root.
+3. Click the taskbar USB-eject icon, wait for "Safe to Remove."
+4. Device shows "updating," reboots into Plato.
+5. **Wait 3+ minutes** for first-boot dictionary conversion (otherwise Lesson #42 SIGBUS).
+6. Reconnect via USB, tap Connect USB.
+7. Extract `plato-sangala-vX.Y-sangala-library.tar.gz`. Drag-drop the contents to the Kobo drive root.
+8. Eject via taskbar.
+
+### Open issues / pending decisions
+
+- **Biology 2e at 203 MB exceeded GitHub's 100 MB per-file cap.** User compressed it via Calibre Edit Book → Tools → Compress images (lossy, quality 60–70) successfully — v2.54 commit `61802e3` includes the compressed version (whatever final size). If future EPUBs exceed 100 MB, same procedure.
+- **Dictionary on device.** User asked about complete removal but ultimately did not pursue (deleted on one test device then re-installed). Build still ships StarDict source in install package; conversion runs on first boot.
+- **`-library.tar.gz` distribution to rural schools with bad internet.** Discussed in the session; user is converging on the pre-stage-on-USB pattern (download once on good internet, hand-carry to schools). No code action needed.
+- **Calibre batch image compression.** Lossy compression in Edit Book is one-book-at-a-time GUI work. If user needs to bulk-process the library, a Python script using Calibre's bundled PIL/imagehandling could work. Out of scope this session.
+- **Power Off menu entry removed in v2.50.** User confirmed they're OK using long-press of the hardware power button. CLAUDE-STATE Burger Menu section documents this. If a future session is asked to restore Power Off, that's the right place to add it back.
+
+### Recommended first actions for next session
+
+1. **Run the 4-check verification at session start** (Lesson #44): `pwd` → `git branch --show-current` → `git status` → `git log -1 --format='%h %s'`. Confirm: in `C:\Users\jbw3r\plato-sangala`, on `sangala-v2.48-base`, clean working tree, HEAD at `6c56160` or later. The actual last push from this session should be `6c56160 CLAUDE-STATE: 2026-06-09 handoff` on top of `61802e3 library: add EPUB content from F:\Library`.
+2. **Check v2.54-sangala release** to confirm artifacts are uploaded (mcp__github__get_release_by_tag). Should have install + library + install-sangala.zip.
+3. **Don't recommend the PS installer.** Manual drag-drop is the deployment path.
+4. **Don't recommend re-enabling features removed this session** (Calculator, Power Off, Enable WiFi, Frontlight presets) without explicit user request.
+5. **If new EPUBs are >100 MB**, the procedure is: Calibre → right-click the book → Edit Book → Tools → Compress images → enable "Enable lossy compression of JPEG images" → quality 60–70 → OK → Ctrl+S. Verify size via right-click in Calibre library → "Open containing folder" (the library window's size column is cached, doesn't refresh).
+
+### Working-style notes from this session
+
+- Search-verify before stating vendor UI paths. See Lesson #43.
+- New-computer / clone-weirdness recovery sequence: see Lesson #44.
+- User pushed back twice on Calibre UI claims — verify and acknowledge mistakes directly when caught. Don't pad apologies; state what was wrong and what the right answer is.
+- User decided several features should go (Calculator, Power Off, WiFi toggle, Frontlight presets). They have specific deployment context (education, library devices). Don't argue feature removals.
+- When user says "I have no further changes. Lets mark this as a new version and ship," that means tag-and-release the current branch tip. The user will follow up if more changes come up afterward.
