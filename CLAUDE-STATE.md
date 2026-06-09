@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. See Session-End Handoff (2026-06-09) below.)
+Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. See the two Session-End Handoffs dated 2026-06-09 below.)
 
 ## Working Conventions (read first)
 
@@ -490,6 +490,8 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 
 44. **"New computer" or unexpected clone state — verify with `git branch --show-current` + `git log -1` before running any add/commit/push commands.** (2026-06-09.) User said "I am on a new computer again," ran a `git clone` that silently failed (directory already existed), and ended up doing work in a stale clone on the WRONG branch (`claude/customize-plato-ui-1Edbm` — the discarded experimental branch from May, deleted from session memory two handoffs ago). The robocopy step succeeded; the subsequent `git add` then surfaced a half-done merge from before, mixed with the new library content. Recovery sequence that worked: `git merge --abort; git fetch origin; git checkout -B sangala-v2.48-base origin/sangala-v2.48-base; git reset --hard origin/sangala-v2.48-base`. Note that `git reset --hard` then wiped the robocopied EPUBs (they were treated as tracked content from the old branch); user had to re-robocopy. **For future "new computer" interactions, do not run any state-changing git commands until verifying**: (1) `pwd` (correct path), (2) `git branch --show-current` (correct branch), (3) `git status` (no half-done merges or pre-existing staged changes), (4) `git log -1 --format=%s` (HEAD commit matches the latest known push from prior sessions). All four green = safe to proceed. Any red = recovery first.
 
+45. **The "new session can't find the right place" problem was a wrong default branch, not branch divergence — and merge/rebase was the wrong tool for it.** (2026-06-09.) GitHub's default branch was `sangala-reader` (ancient `a9a74fd`, 121 commits behind the trunk), and `master` carried a stale `CLAUDE.md` pointing sessions at the discarded `claude/customize-plato-ui-1Edbm` branch. Fresh clones/sessions inherit the repo's default branch, so every new session started 121 commits in the past with no `CLAUDE-STATE.md`. Nothing needed merging (only the deliberately-discarded experiment had unique commits, and those were never wanted in the trunk). Fix: rename the trunk to `main`, set it as the GitHub default, delete the dead branches, archive the one branch with unique commits as the `archive/customize-plato-ui` tag, and add a short auto-loaded `CLAUDE.md` on `main` so the harness orients every session. **Operational constraint discovered:** the Claude-on-web managed git proxy returns HTTP 403 on tag pushes AND ref deletions — it only allows creating/updating branches. So changing the default branch (a repo setting), pushing tags, and deleting branches all have to be done by the user from their own machine / GitHub UI. Don't burn retries on these from a web session; hand them to the user with exact commands.
+
 ## Session-End Handoff (2026-06-09, UI polish + package rework + library workflow)
 
 ### Status
@@ -560,3 +562,32 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 - User pushed back twice on Calibre UI claims — verify and acknowledge mistakes directly when caught. Don't pad apologies; state what was wrong and what the right answer is.
 - User decided several features should go (Calculator, Power Off, WiFi toggle, Frontlight presets). They have specific deployment context (education, library devices). Don't argue feature removals.
 - When user says "I have no further changes. Lets mark this as a new version and ship," that means tag-and-release the current branch tip. The user will follow up if more changes come up afterward.
+
+## Session-End Handoff (2026-06-09, branch cleanup)
+
+### Status
+
+Repository branch hygiene fixed. No code or release changes — this was navigation cleanup only. The factory-reset fix (v2.49) and the v2.49–v2.54 releases are unchanged and still current. Everything in the prior 2026-06-09 handoff (UI polish + package rework + library workflow) still stands.
+
+### What landed
+
+- **Trunk renamed `sangala-v2.48-base` → `main`** and set as the GitHub default branch. Fresh clones / new sessions now land on `main` automatically instead of the ancient `sangala-reader`.
+- **Added `CLAUDE.md`** to `main` — a short, harness-auto-loaded orientation pointer (canonical branch = `main`, read `CLAUDE-STATE.md` next, the load-bearing don'ts, recovery tag).
+- **Deleted stale branches:** `sangala-reader` (was the bad default), `sangala-v2.48-base` (old trunk name), `claude/customize-plato-ui-1Edbm`, `claude/laughing-darwin-hHYv2`, `master`. (`claude/funny-fermat-oufn2k` was already gone from the remote.)
+- **Archived the discarded experiment** (`claude/customize-plato-ui-1Edbm`, 27 unique commits) as tag **`archive/customize-plato-ui`** before deleting the branch. Recover with `git checkout -b recover archive/customize-plato-ui`.
+- Release tags (`v2.3` … `v2.54`) untouched.
+
+### End state
+
+Exactly **one branch — `main`** (the default) — plus the `archive/customize-plato-ui` recovery tag and the existing release tags. See Lesson #45 for why this was the fix (and why merge/rebase wasn't).
+
+### Recommended first actions for next session
+
+1. **4-check (Lesson #44):** `pwd` → `git branch --show-current` (expect `main`) → `git status` → `git log -1 --format='%h %s'`. If a fresh clone drops you on a `claude/*` branch or an ancient commit with no `CLAUDE-STATE.md`, run `git fetch origin && git checkout main`. The auto-loaded `CLAUDE.md` should also point you here.
+2. HEAD on `main` should be this branch-cleanup handoff commit, on top of `28cdf95 branch cleanup: rename trunk to main, add CLAUDE.md orientation pointer`.
+3. If extra branches ever reappear at session start, check whether the Claude-on-web **environment is pinned** to a base branch other than the repo default — repoint it to `main`.
+4. Nothing functional changed: the v2.54+ manual drag-drop deploy flow and the don't-propose list (Calculator / Power Off / Enable WiFi / Frontlight presets, Nickel, the PS installer for production, any pre-v2.49 version as stable) all still apply.
+
+### Local artifacts note
+
+The user's local clone has untracked installer build outputs under `sangala/installer/` (v2.48 `-install`/`-update` tarballs, their extracted dirs, `install-sangala.log`). Harmless, untracked, not on any branch. A `.gitignore` rule for them was offered but not requested this session.
