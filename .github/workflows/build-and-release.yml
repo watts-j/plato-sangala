@@ -141,6 +141,13 @@ jobs:
           cp -R shared-content "${INSTALL}"
           # Add KoboRoot.tgz for first-time system setup
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
+          # Pre-create the dot-prefixed library folder structure so Plato's
+          # cascading menu shows every category on first launch (even before
+          # the deployer sideloads EPUBs).
+          shopt -s dotglob
+          cp -R sangala/library-skeleton/* "${INSTALL}/"
+          shopt -u dotglob
+          find "${INSTALL}" -name '.gitkeep' -delete
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
       - name: Bundle installer scripts
@@ -193,16 +200,17 @@ jobs:
 
             **`-install.tar.gz`** — Complete install (~70MB). KFMon daemon
             binaries, NickelMenu Qt plugin, KFMon-aware `on-animator.sh`,
-            Plato app, Settings, dictionaries, screensaver, and the
-            KoboRoot.tgz system bootstrap. Everything a Clara BW needs to
-            run Sangala. Triggers an "updating" screen and one automatic
+            Plato app, Settings, dictionaries, screensaver, KoboRoot.tgz
+            system bootstrap, AND the empty dot-prefixed library folder
+            structure (`.STEM`, `.Humanities`, `.Enrichment`, `.Resources`,
+            `.Vocational`, `.Menu`). Single drag-drop deploys everything
+            Sangala needs. Triggers an "updating" screen and one automatic
             reboot during install.
 
-            **`-update.tar.gz`** — Pre-built library folder structure only
-            (dot-prefixed `.STEM`, `.Humanities`, `.Enrichment`, etc.).
-            Library currently ships empty; deploy team sideloads EPUB
-            content per-device. Optional — only useful if you want the
-            empty folder structure pre-created on the device.
+            **`-update.tar.gz`** — Redundant in v2.53+ (install package
+            already includes the library folder structure). Kept in the
+            release for backwards compatibility with any tooling that
+            still expects the artifact. Do not apply.
 
             ### Manual install (recommended)
             1. Connect Kobo via USB.
