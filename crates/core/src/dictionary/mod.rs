@@ -51,18 +51,10 @@ impl Dictionary {
         // (e.g. "book" -> the noun, not "Book" the surname). Stable sort keeps
         // the relative order within each group.
         entries.sort_by_key(|e| e.original.as_deref().unwrap_or(e.headword.as_str()) != query.as_str());
-        // DIAGNOSTIC (temporary): captured to info.log via plato.sh. Reveals how
-        // many senses matched and what each fetch returns, to find why a word
-        // can display a single sense when the index holds several. Remove once
-        // the dictionary lookup is confirmed working.
-        eprintln!("[dict-diag] query={:?} fuzzy={} case_sensitive={} all_chars={} matched={}",
-                  query, fuzzy, self.metadata.case_sensitive, self.metadata.all_chars, entries.len());
         let mut results = Vec::new();
         for entry in entries.into_iter() {
-            let def = self.content.fetch_definition(entry.offset, entry.size)?;
-            eprintln!("[dict-diag]   headword={:?} original={:?} offset={} size={} -> fetched {} bytes",
-                      entry.headword, entry.original, entry.offset, entry.size, def.len());
-            results.push([entry.original.unwrap_or(entry.headword), def]);
+            results.push([entry.original.unwrap_or(entry.headword),
+                          self.content.fetch_definition(entry.offset, entry.size)?]);
         }
         Ok(results)
     }
