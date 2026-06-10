@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. 2026-06-09 follow-up: established that the per-session `claude/*` branch on Claude-Code-on-web is unavoidable platform behavior, not a repo bug (Lesson #46); adopted a merge-to-main workflow and removed the harmful "git checkout main on web" instruction from `CLAUDE.md`. Build infra 2026-06-09: the ARM cross-toolchain is now self-hosted as a hash-pinned `build-deps` release asset after Linaro started returning 403 for its legacy download host — this unblocked the v2.54/v2.55 release builds (Lesson #47); the toolchain version stays pinned (newer glibc would not run on the Kobo). v2.55 locks the screen to portrait (rotate gesture now honors `rotation_lock`; Clara BW has no gyroscope — Lesson #49). v2.56 fixes wrong dictionary definitions by filtering bad shadowing synonyms from the source `.syn` (Lesson #48). See the three Session-End Handoffs dated 2026-06-09 below.)
+Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. 2026-06-09 follow-up: established that the per-session `claude/*` branch on Claude-Code-on-web is unavoidable platform behavior, not a repo bug (Lesson #46); adopted a merge-to-main workflow and removed the harmful "git checkout main on web" instruction from `CLAUDE.md`. Build infra 2026-06-09: the ARM cross-toolchain is now self-hosted as a hash-pinned `build-deps` release asset after Linaro started returning 403 for its legacy download host — this unblocked the v2.54/v2.55 release builds (Lesson #47); the toolchain version stays pinned (newer glibc would not run on the Kobo). v2.55 locks the screen to portrait (rotate gesture now honors `rotation_lock`; Clara BW has no gyroscope — Lesson #49). v2.56 fixes wrong dictionary definitions by filtering bad shadowing synonyms from the source `.syn` (Lesson #48). v2.54–v2.56 are built and pre-released; the build pipeline was repaired after Linaro 403'd its toolchain host (Lesson #47). Start with the newest handoff (2026-06-10, build pipeline repair + rotation + dictionary) below.)
 
 ## Working Conventions (read first)
 
@@ -630,3 +630,46 @@ Docs-only. No code or release changes; v2.49–v2.54 and the deploy flow are unc
 1. **4-check (Lesson #44)** — but read Lesson #46 first: on web, a `claude/*` branch at `main`'s tip is *normal*, not the stale-clone failure. Don't `git checkout main` on web.
 2. **To land this session's doc updates on `main`:** from your local clone — `git fetch origin && git checkout main && git merge --ff-only origin/claude/jolly-thompson-18efpa` (clean FF since it forked from `main`'s tip), then `git push origin main`. The web proxy can't push `main` (Lesson #45/#46), so this step is yours.
 3. Nothing functional changed: v2.54+ manual drag-drop deploy flow and the don't-propose list all still apply.
+
+## Session-End Handoff (2026-06-10, build pipeline repair + rotation lock + dictionary fix; v2.54–v2.56 shipped)
+
+### Status
+
+Three independent, cleanly-scoped fixes shipped as **separate** pre-releases, and the **release pipeline (which was fully broken) is repaired**. Factory-reset fix (v2.49) unchanged. All three builds are green on GitHub Actions.
+
+### What landed this session
+
+- **Build pipeline repaired (Lesson #47).** Linaro now returns 403 for its legacy toolchain binaries; builds failed at the toolchain download once the Actions cache expired (that's why v2.54/v2.55 "failed to build" — not a code problem). Fix: self-host the exact **Linaro 4.9.4-2017.01** toolchain as a **SHA-256-pinned asset on the `build-deps` GitHub release**. `build-and-release.yml` now downloads from there, verifies `TOOLCHAIN_SHA256=22914118…f11ac07` (fail-closed), retries, and treats `actions/cache` as a mere optimization. **Do NOT delete the `build-deps` release/asset — it's a permanent build dependency.** Do NOT bump the toolchain version (glibc; Lesson #47).
+- **v2.55 — screen locked to portrait (Lesson #49).** The Clara BW has no gyroscope; rotation came from the two-finger gesture, which `rotation_lock` didn't gate. Routed the rotate chokepoint through the lock; default `Portrait`.
+- **v2.56 — dictionary fix (Lesson #48).** The source `.syn` mapped some real words to unrelated entries (`book`→`bake`), shadowing correct definitions. Filtered the shipped `.syn` (`contrib/filter-synonyms.py`) to drop synonyms that collide with a real headword. Data-only; spot-checked 100 words, 0 shadows.
+- **Docs:** Lessons #46–#49, Reference Versions through v2.56, `CLAUDE.md` load-bearing facts refreshed (toolchain caution, version range, rotation don't-re-propose).
+
+### Release status
+
+`v2.54-sangala` (library), `v2.55-sangala` (rotation), `v2.56-sangala` (dictionary) are all **built green and pre-released** with the three artifacts each (install ≈68.7 MB, library ≈161 MB, install-sangala.zip). **Not yet device-tested → still pre-release.** Release boundaries are deliberate: v2.54 = library only, v2.55 = + rotation, v2.56 = + dictionary fix.
+
+### End state / branches
+
+- Work is on `claude/jolly-thompson-18efpa` @ `d7a4fb6` (this session). `main` was fast-forwarded through the v2.56 tag commit (`2dd45ff`); the final docs commit `d7a4fb6` (Lessons #48/#49 + this handoff) still needs to land on `main`.
+- New `build-deps` release exists on GitHub holding the toolchain tarball — **permanent, keep it.**
+- Recovery tag `archive/customize-plato-ui` and release tags untouched.
+
+### Recommended first actions for next session
+
+1. **4-check (Lesson #44), but read Lesson #46 first** — on web a `claude/*` branch at `main`'s tip is normal; don't `git checkout main` on web.
+2. **Consolidate this session onto `main`** (user-side; web proxy can't push `main`):
+   ```
+   git fetch origin
+   git checkout main
+   git merge --ff-only origin/claude/jolly-thompson-18efpa   # -> d7a4fb6
+   git push origin main
+   git push origin --delete claude/jolly-thompson-18efpa
+   ```
+
+### Pending / open (next-session candidates)
+
+- **Device-test the new fixes**, then promote v2.54–v2.56 from pre-release to stable on GitHub:
+  - v2.55: confirm the screen no longer rotates to landscape on a two-finger touch.
+  - v2.56: after a fresh `-install.tar.gz` + 3-min re-conversion, look up `book`/`cook` — should return real definitions (existing devices keep the bad index until reinstalled).
+- **Stuck-keyboard bug is diagnosed but NOT implemented.** Earlier this session we analyzed it (keyboard is a child view dismissed only via focus-gated `toggle_keyboard`; desync survives until reboot) and laid out options A–F (force-hide primitive + gesture/menu escape hatch, root-cause fixes, self-healing watchdog, logging-first). Nothing was coded — revisit if it recurs; logging-first (option F) before a structural fix.
+- Benign log line `find: dictionaries/dictionary.syn: No such file or directory` (the `.syn` is consumed during conversion) — can be quieted if desired.

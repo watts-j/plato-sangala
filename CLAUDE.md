@@ -36,13 +36,19 @@ anything git can answer (tags, branch tips, release flags).
 
 ## Load-bearing facts (details in CLAUDE-STATE.md)
 
-- **Factory-reset bug is FIXED as of v2.49** (KFMon retrofit). v2.49–v2.54 are
+- **Factory-reset bug is FIXED as of v2.49** (KFMon retrofit). v2.49–v2.56 are
   released (pre-release) on GitHub. Do not call any pre-v2.49 version stable.
+- **Build toolchain is self-hosted + version-pinned.** The ARM cross-toolchain
+  lives as a SHA-256-pinned asset on the `build-deps` GitHub release (Linaro's
+  host 403s its legacy binaries now). Do **not** bump the toolchain version —
+  newer glibc won't run on the Kobo (Lesson #47).
 - **Deploy is manual drag-drop**, not the PowerShell installer (broken on the
   user's Windows setup — see Lesson #42). v2.54+: install package, eject, wait
-  3 min for dictionary conversion, then library package.
+  3 min for dictionary conversion, then library package. v2.56's dictionary fix
+  only takes effect after that on-device re-conversion.
 - **Don't re-propose** removed features (Calculator, Power Off, Enable WiFi,
-  Frontlight presets), Nickel as a Plato alternative (Lesson #36), or the PS
+  Frontlight presets), re-enabling screen rotation / a Show-Hide-Keyboard
+  workaround (Lesson #49), Nickel as a Plato alternative (Lesson #36), or the PS
   installer for production — unless explicitly asked.
 - **Search-verify** vendor UI paths (Calibre, Nickel, Windows) with a current
   WebSearch before stating menu locations (Lesson #43).
