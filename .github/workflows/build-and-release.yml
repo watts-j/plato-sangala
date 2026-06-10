@@ -106,10 +106,14 @@ jobs:
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.inputs.release_tag }}"
           else
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.ref_name }}"
           fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          # Asset basename uses the bare version (no "-sangala" suffix) to avoid
+          # the redundant "plato-sangala-...-sangala-" in artifact names.
+          echo "version=${TAG%-sangala}" >> $GITHUB_OUTPUT
 
       - name: Assemble shared content
         run: |
@@ -151,8 +155,8 @@ jobs:
 
       - name: Assemble library package
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          LIBRARY="plato-sangala-${TAG}-library"
+          VERSION="${{ steps.tag.outputs.version }}"
+          LIBRARY="plato-sangala-${VERSION}-library"
           mkdir -p "${LIBRARY}"
           # Pure content. No install script, no system files. The deployer
           # extracts this and drag-drops its contents onto the Kobo's root
@@ -166,8 +170,8 @@ jobs:
 
       - name: Assemble install package
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          INSTALL="plato-sangala-${TAG}-install"
+          VERSION="${{ steps.tag.outputs.version }}"
+          INSTALL="plato-sangala-${VERSION}-install"
           cp -R shared-content "${INSTALL}"
           # Add KoboRoot.tgz for first-time system setup
           cp sangala/kobo-assets/KoboRoot.tgz "${INSTALL}/.kobo/KoboRoot.tgz"
@@ -193,14 +197,14 @@ jobs:
       - name: Upload library artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plato-sangala-${{ steps.tag.outputs.tag }}-library
-          path: plato-sangala-${{ steps.tag.outputs.tag }}-library.tar.gz
+          name: plato-sangala-${{ steps.tag.outputs.version }}-library
+          path: plato-sangala-${{ steps.tag.outputs.version }}-library.tar.gz
 
       - name: Upload install artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plato-sangala-${{ steps.tag.outputs.tag }}-install
-          path: plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
+          name: plato-sangala-${{ steps.tag.outputs.version }}-install
+          path: plato-sangala-${{ steps.tag.outputs.version }}-install.tar.gz
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -270,8 +274,8 @@ jobs:
             is preserved across install reapplications because the
             install package ships only empty folder structure.
           files: |
-            plato-sangala-${{ steps.tag.outputs.tag }}-install.tar.gz
-            plato-sangala-${{ steps.tag.outputs.tag }}-library.tar.gz
+            plato-sangala-${{ steps.tag.outputs.version }}-install.tar.gz
+            plato-sangala-${{ steps.tag.outputs.version }}-library.tar.gz
             install-sangala.zip
           draft: false
           # Tag releases ship as pre-release by default; manually promote to
