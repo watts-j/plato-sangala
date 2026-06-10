@@ -184,15 +184,14 @@ jobs:
             | xargs -0 -I {} mkdir -p "${INSTALL}/{}"
           tar -czf "${INSTALL}.tar.gz" "${INSTALL}"
 
-      - name: Bundle installer scripts
+      - name: List release files
         run: |
-          # Wrap both .ps1 installers in a .zip so they're normal downloadable
-          # assets. GitHub's release UI sometimes hides bare .ps1 attachments.
-          cp sangala/installer/install-sangala.ps1 install-sangala.ps1
-          cp sangala/installer/install-sangala-gui.ps1 install-sangala-gui.ps1
-          zip install-sangala.zip install-sangala.ps1 install-sangala-gui.ps1
-          echo "All release files:"
-          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-library.tar.gz install-sangala.zip
+          # The PowerShell installers (install-sangala.zip) are intentionally
+          # NOT shipped: they're unvetted/unreliable and the deploy path is
+          # manual drag-drop (Lesson #42). Re-add a bundle step + the zip to the
+          # release `files:` only once those installers are validated.
+          echo "Release files:"
+          ls -la plato-sangala-*-install.tar.gz plato-sangala-*-library.tar.gz
 
       - name: Upload library artifact
         uses: actions/upload-artifact@v4
@@ -276,7 +275,6 @@ jobs:
           files: |
             plato-sangala-${{ steps.tag.outputs.version }}-install.tar.gz
             plato-sangala-${{ steps.tag.outputs.version }}-library.tar.gz
-            install-sangala.zip
           draft: false
           # Tag releases ship as pre-release by default; manually promote to
           # stable on the GitHub Releases page once a device test passes.
