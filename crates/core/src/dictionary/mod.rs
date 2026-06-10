@@ -45,7 +45,12 @@ impl Dictionary {
         if !self.metadata.all_chars {
             query = query.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
         }
-        let entries = self.index.load_and_find(&query, fuzzy, &self.metadata);
+        let mut entries = self.index.load_and_find(&query, fuzzy, &self.metadata);
+        // Show the sense whose headword matches the query's case first, so a
+        // common word isn't led by a capitalized proper-noun homograph
+        // (e.g. "book" -> the noun, not "Book" the surname). Stable sort keeps
+        // the relative order within each group.
+        entries.sort_by_key(|e| e.original.as_deref().unwrap_or(e.headword.as_str()) != query.as_str());
         let mut results = Vec::new();
         for entry in entries.into_iter() {
             results.push([entry.original.unwrap_or(entry.headword),
