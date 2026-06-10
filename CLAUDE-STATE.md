@@ -1,6 +1,6 @@
 # Plato Sangala — Project State
 
-Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. 2026-06-09 follow-up: established that the per-session `claude/*` branch on Claude-Code-on-web is unavoidable platform behavior, not a repo bug (Lesson #46); adopted a merge-to-main workflow and removed the harmful "git checkout main on web" instruction from `CLAUDE.md`. Build infra 2026-06-09: the ARM cross-toolchain is now self-hosted as a hash-pinned `build-deps` release asset after Linaro started returning 403 for its legacy download host — this unblocked the v2.54/v2.55 release builds (Lesson #47); the toolchain version stays pinned (newer glibc would not run on the Kobo). v2.55 locks the screen to portrait (rotate gesture now honors `rotation_lock`; Clara BW has no gyroscope — Lesson #49). v2.56 fixes wrong dictionary definitions by filtering bad shadowing synonyms from the source `.syn` (Lesson #48). v2.54–v2.56 are built and pre-released; the build pipeline was repaired after Linaro 403'd its toolchain host (Lesson #47). Start with the newest handoff (2026-06-10, build pipeline repair + rotation + dictionary) below.)
+Last updated: 2026-06-09 (v2.49 retrofit confirmed working in production multi-cycle. v2.50–v2.54 shipped: UI polish, frontlight cleanup, package-structure rework, EPUB library shipped as separate `-library.tar.gz` artifact populated from user's F:\Library. Factory-reset bug FIXED. PS installer determined unreliable on user's Windows setup; manual drag-drop is the deploy path. Repository branch cleanup 2026-06-09: trunk renamed `sangala-v2.48-base` → `main` and set as the GitHub default, stale branches deleted, discarded experiment archived as the `archive/customize-plato-ui` tag. 2026-06-09 follow-up: established that the per-session `claude/*` branch on Claude-Code-on-web is unavoidable platform behavior, not a repo bug (Lesson #46); adopted a merge-to-main workflow and removed the harmful "git checkout main on web" instruction from `CLAUDE.md`. Build infra 2026-06-09: the ARM cross-toolchain is now self-hosted as a hash-pinned `build-deps` release asset after Linaro started returning 403 for its legacy download host — this unblocked the v2.54/v2.55 release builds (Lesson #47); the toolchain version stays pinned (newer glibc would not run on the Kobo). v2.55 locks the screen to portrait (rotate gesture now honors `rotation_lock`; Clara BW has no gyroscope — Lesson #49). v2.56 fixes wrong dictionary definitions by filtering bad shadowing synonyms from the source `.syn` (Lesson #48); v2.57 adds the dictionary ordering fix (common word before proper-noun homograph, device-verified — Lesson #50); v2.58 (= v2.57 minus diagnostics) is ready to tag at `d727323`. The build pipeline was repaired after Linaro 403'd its toolchain host (Lesson #47). Start with the newest handoff (2026-06-10) below.)
 
 ## Working Conventions (read first)
 
@@ -18,6 +18,8 @@ Avoid both. Specifically:
 
 ## Reference Versions
 
+- **v2.58-sangala** — (pending tag at `d727323`) v2.57 minus the temporary `[dict-diag]` logging. The clean dictionary-ordering release; deploy this, retire v2.57.
+- **v2.57-sangala** — Dictionary ordering fix (code): `Dictionary::lookup` stable-sorts senses so the one matching the query's case leads (common "book" before "Book" the surname; same for cook/china/turkey/will/lead/…). Also carries temporary `[dict-diag]` logging to `info.log`, which **confirmed on-device** that search+fetch+ordering work end-to-end (`matched=2`, full byte counts). See Lesson #50. Superseded by v2.58.
 - **v2.56-sangala** — Dictionary-quality fix (data-only). Filtered the shipped `.syn` to drop 22,902 synonyms that shadowed real headwords (the `book`→`bake` class), keeping 574,015 inflection lookups. Fixes "wrong/incorrect definitions" for common words. `contrib/filter-synonyms.py` reproduces the transform. Requires a fresh `-install.tar.gz` + on-device re-conversion to take effect (existing devices keep the bad index until reinstalled). See Lesson #48.
 - **v2.55-sangala** — Screen locked to portrait: the two-finger rotate gesture now honors `rotation_lock`, which defaults to `Portrait` (Clara BW has no gyroscope, so the gesture was the only rotation source and the old lock didn't gate it). See Lesson #49. Also carries the build-infra change that unblocked releases: the ARM cross-toolchain is now self-hosted as a hash-pinned `build-deps` release asset after Linaro 403'd its legacy download host (Lesson #47). v2.54 = library content only (no rotation); v2.55 = library + rotation.
 - **v2.54-sangala** — Reintroduces a separate library content package as `-library.tar.gz`, replacing the now-removed `-update.tar.gz`. Install package keeps the empty dot-folder structure only (built via `find -type d | xargs mkdir -p`, no file copy). Library package contains the EPUB collection committed to `sangala/library-skeleton/`. Deploy is now "install first, library second" — but with the library phase being pure content copy, there's no overlap with the system install's first-boot conversion. Replaces v2.53's "single-package" claim, which was technically true but precluded shipping library content via the release at all.
@@ -507,6 +509,8 @@ The two-package layout was introduced so subsequent updates don't re-trigger Nic
 
 49. **The Clara BW has no gyroscope — unwanted portrait↔landscape rotation is the two-finger rotate *gesture*, and `rotation_lock` didn't gate it.** (2026-06-09, v2.55.) `device.rs::has_gyroscope()` excludes the Clara BW, so tilt can't rotate the screen; the accidental rotations come from Plato's two-finger rotate gesture (`reader`/`home` views → `EntryId::Rotate`). The `rotation_lock` setting only guarded the **gyroscope** path in `app.rs`, so on a gyro-less device it did nothing. Fix: route the single rotation chokepoint (`Event::Select(EntryId::Rotate)` in `app.rs`) through a `rotation_allowed()` helper so the lock gates **every** source (gesture, gyro, menu), and default `rotation_lock` to `Portrait` (Rust default in `settings/mod.rs` + shipped `sangala/Settings.toml`). `Portrait` blocks landscape but still allows the 180° portrait flip; use `"current"` to pin one orientation entirely. Don't re-introduce a "Show/Hide Keyboard"-style workaround for this — the lock is the fix.
 
+50. **Dictionary "book shows only the surname" had TWO stacked causes — and reinstalling destroys the evidence for on-device dictionary faults.** (2026-06-10, v2.57.) After the v2.56 synonym fix, "book" still misbehaved: first it led with "Book (Proper Noun, a surname)" — and on one device it showed *only* that, one short entry with empty space below. Causes found: (a) **ordering** — the converted index sorts capitalized before lowercase, and `Dictionary::lookup` returned senses in raw index order, so the proper-noun homograph led for book/cook/china/turkey/will/lead/etc. Fixed in `crates/core/src/dictionary/mod.rs` with a stable `sort_by_key` putting the sense whose headword matches the query's case first (validated against the real data for 15 homographs). (b) **the single-sense display** — root cause *unproven*: a temporary `[dict-diag]` eprintln in `lookup` (captured via `plato.sh`'s `./plato >> info.log 2>&1`) showed, after v2.57's install, `matched=2` with full byte counts for both senses — search, dictzip fetch, and ordering all correct end-to-end. The symptom did not survive v2.57's **fresh on-device conversion**, so the earlier failure most plausibly lived in that device's previously-converted `.dict` (interrupted/partial-conversion family, cf. Lesson #42) — plausible but unprovable, because reinstalling re-converted the dictionary and overwrote the evidence. **Rules: (1) if a dictionary symptom appears, pull `info.log` AND the on-device `dictionaries/` folder BEFORE reinstalling; (2) the eprintln-to-info.log diagnostic pattern is cheap and decisive — one instrumented build beats theorizing (two wrong hypotheses preceded it); (3) verify against the on-device converted index, not `sangala/dictionaries-converted/` (stale, Lesson #48).**
+
 ## Session-End Handoff (2026-06-09, UI polish + package rework + library workflow)
 
 ### Status
@@ -646,30 +650,34 @@ Three independent, cleanly-scoped fixes shipped as **separate** pre-releases, an
 
 ### Release status
 
-`v2.54-sangala` (library), `v2.55-sangala` (rotation), `v2.56-sangala` (dictionary) are all **built green and pre-released** with the three artifacts each (install ≈68.7 MB, library ≈161 MB, install-sangala.zip). **Not yet device-tested → still pre-release.** Release boundaries are deliberate: v2.54 = library only, v2.55 = + rotation, v2.56 = + dictionary fix.
+`v2.54-sangala` (library), `v2.55-sangala` (rotation), `v2.56-sangala` (dictionary data), and `v2.57-sangala` (dictionary ordering + temporary diagnostic) are all **built green and pre-released**. **v2.57 is device-verified for the dictionary** (book/cook show complete, correctly-ordered definitions; `[dict-diag]` log confirmed `matched=2`, full fetches) but still carries the diagnostic logging — **v2.58** (commit `d727323`, diagnostic removed, reorder kept) is ready to tag as the clean release. Release boundaries: v2.54 = library only, v2.55 = + rotation, v2.56 = + dictionary data fix, v2.57/v2.58 = + dictionary ordering (v2.58 = v2.57 minus log noise).
 
 ### End state / branches
 
-- Work is on `claude/jolly-thompson-18efpa` @ `d7a4fb6` (this session). `main` was fast-forwarded through the v2.56 tag commit (`2dd45ff`); the final docs commit `d7a4fb6` (Lessons #48/#49 + this handoff) still needs to land on `main`.
+- Work is on `claude/jolly-thompson-18efpa` @ `d727323` (this session). `main` was last fast-forwarded to the v2.57 tag commit; the diagnostic-removal commit `d727323` + this handoff still need to land on `main` and be tagged `v2.58-sangala`.
 - New `build-deps` release exists on GitHub holding the toolchain tarball — **permanent, keep it.**
 - Recovery tag `archive/customize-plato-ui` and release tags untouched.
 
 ### Recommended first actions for next session
 
 1. **4-check (Lesson #44), but read Lesson #46 first** — on web a `claude/*` branch at `main`'s tip is normal; don't `git checkout main` on web.
-2. **Consolidate this session onto `main`** (user-side; web proxy can't push `main`):
+2. **Consolidate this session onto `main` and tag v2.58** (user-side; web proxy can't push `main` or tags):
    ```
    git fetch origin
    git checkout main
-   git merge --ff-only origin/claude/jolly-thompson-18efpa   # -> d7a4fb6
+   git merge --ff-only origin/claude/jolly-thompson-18efpa
    git push origin main
+   git tag -a v2.58-sangala -m "v2.58-sangala: dictionary ordering fix, diagnostic removed"
+   git push origin v2.58-sangala
    git push origin --delete claude/jolly-thompson-18efpa
    ```
 
 ### Pending / open (next-session candidates)
 
-- **Device-test the new fixes**, then promote v2.54–v2.56 from pre-release to stable on GitHub:
-  - v2.55: confirm the screen no longer rotates to landscape on a two-finger touch.
-  - v2.56: after a fresh `-install.tar.gz` + 3-min re-conversion, look up `book`/`cook` — should return real definitions (existing devices keep the bad index until reinstalled).
+- **Tag and build v2.58** (clean dictionary release; see commands above), install on devices, retire v2.57.
+- **Device-test status**, then promote from pre-release to stable on GitHub:
+  - v2.55 rotation: not yet explicitly confirmed on-device.
+  - v2.56/v2.57 dictionary: **confirmed working on the test device** (complete, ordered definitions for book/cook; diag log verified). v2.58 inherits this.
+- **If a dictionary symptom ever reappears: pull `info.log` AND the on-device `dictionaries/` folder BEFORE reinstalling** (Lesson #50 — reinstall re-converts and destroys the evidence).
 - **Stuck-keyboard bug is diagnosed but NOT implemented.** Earlier this session we analyzed it (keyboard is a child view dismissed only via focus-gated `toggle_keyboard`; desync survives until reboot) and laid out options A–F (force-hide primitive + gesture/menu escape hatch, root-cause fixes, self-healing watchdog, logging-first). Nothing was coded — revisit if it recurs; logging-first (option F) before a structural fix.
 - Benign log line `find: dictionaries/dictionary.syn: No such file or directory` (the `.syn` is consumed during conversion) — can be quieted if desired.
