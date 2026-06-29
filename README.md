@@ -38,8 +38,9 @@ The native clock and dictionary remain intact, but potentially distracting apps 
 ### Files
 The installation files for the reader come in two packages.
 
-1. The Install Package
-2. The Content Package
+The Install Package
+   
+The Content Package
 
 ### Installation
 For now, installation must be performed manually. I am in the process of developing an installer that will handle both packages as well as setting the User Name, but it is not quite ready yet.
