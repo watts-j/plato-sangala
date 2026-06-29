@@ -4,18 +4,6 @@ A custom build of [Plato](https://github.com/baskerville/plato) for the **Kobo C
 
 This is a fork. All credit for Plato itself goes to [@baskerville](https://github.com/baskerville). Modifications here are licensed under the same terms (AGPL-3.0).
 
----
-
-## What's different from upstream Plato
-
-- **Cascading taxonomy menu.** The title-bar library menu is a hierarchical structure (STEM → Mathematics → Algebra, etc.) rather than a flat list of libraries.
-- **New event variant `LoadLibraryAndSelectDirectory`.** Allows a single menu entry to switch libraries *and* apply a directory filter atomically.
-- **Four top-level libraries:** STEM, Humanities, Enrichment, Resources. Sub-disciplines are subfolders within each, surfaced through the cascading menu.
-- **Library skeleton included.** `sangala/library-skeleton/` contains the empty folder structure to drop onto a device.
-- **Preconfigured `Settings.toml`** pointing at the four libraries in database mode.
-
----
-
 ## Repository layout
 
 ```
@@ -41,46 +29,46 @@ Plato for Kobo must be built against an old toolchain because Kobo firmware ship
 
 ---
 
-## Building
-
-```bash
-# Set the cross-compiler in your shell
-export PATH=/path/to/gcc-linaro-4.9.4-.../bin:$PATH
-export CC=arm-linux-gnueabihf-gcc
-
-# Build Plato's bundled C dependencies
-cd thirdparty
-./download.sh && ./build.sh
-cd ..
-
-# Build the wrapper static library
-cd crates/mupdf_wrapper
-./build.sh
-cd ../..
-
-# Build only the Plato binary (skip the fetcher crate, which transitively
-# pulls in aws-lc-sys; that crate's ARMv8 crypto assembly is incompatible
-# with the Linaro 4.9.4 assembler)
-cargo build -p plato --release --target arm-unknown-linux-gnueabihf
-
-# Strip
-arm-linux-gnueabihf-strip target/arm-unknown-linux-gnueabihf/release/plato
-```
-
-The output binary is `target/arm-unknown-linux-gnueabihf/release/plato` (~6 MB stripped).
-
----
-
 ## Deployment to a Kobo Clara BW
 
-1. Connect the Kobo via USB and mount it (`/mnt/onboard` from the device's perspective; appears as a removable drive on the host).
-2. Sideload Plato per the upstream Plato instructions: copy the `.adds/plato/` tree, the KoboRoot.tgz launcher, etc.
-3. Replace the default `Settings.toml` with `sangala/Settings.toml`.
-4. Replace the `plato` binary with your build.
-5. Copy the contents of `sangala/library-skeleton/` into `/mnt/onboard/` so the four taxonomy roots exist.
-6. Eject and let the device restart.
+The Sangala Reader is a customized reading interface that runs on Kobo Clara BW e-ink devices. It replaces the native user interface with platform that presents a curated library of textbooks organized by content area. The navigation menu is fully customizable, meaning that the device can be made to align with any school curriculum.
 
-After first run, each empty subfolder will contain a `.fat32-epoch` file. This is Plato's workaround for FAT32's 2-second timestamp resolution — leave it alone.
+The native clock and dictionary remain intact, but potentially distracting apps and features like games, virtual news-stands, and WIFI have been disabled.
+
+### Files
+The installation files for the reader come in two packages.
+
+The Install Package
+The Content Package
+
+### Installation
+For now, installation must be performed manually. I am in the process of developing an installer that will handle both packages as well as setting the User Name, but it is not quite ready yet.
+
+To install the reader on a factory reset Kobo Clara BW eReader follow the steps below. If your device has already been set up as a Kobo eReader, begin by going to “Device Information” under the burger menu in the top right corner of the screen and performing a factory reset.
+
+Turn on the device and proceed through the setup wizard until you reach the screen that scans for Wifi connections.
+Connect the device to a computer via USB cable. A prompt on your device screen will ask to connect as a USB device. Click “OK”.
+Unzip the contents of the Install package.
+Inside the unzipped folder, open the Sangala-Install folder. Inside, you will see eight folders. If you do not see these folders, show hidden files. (On a Mac, press CMD+Shift+. at the same time.)
+Copy these eight folders.
+Navigate to the device on your computer. It should appear as “KOBOeReader”.
+Paste the copied folders into the top level of the device. If prompted, replace duplicate files.
+Eject your device from the computer and then unplug the USB cable.
+DO NOT POWER OFF THE DEVICE AFTER IT REBOOTS.
+
+The device takes several minutes to process the installation. If this process is inturrupted, files may be corrupted.
+
+After 3-5 minutes, open the burger menu in the top right corner of the screen and select “Dictionary”. Attempt to look up a word. f the definition does not load, wait a few more minutes, tap “Dictionary” at the top of the screen and click “Update dictionary”. Then search again. Once the word definition appears, initial installation is complete.
+
+### Loading Content
+To load content onto the device, reconnect to your computer via USB, unzip the Sangala-Library file, and open it to the six subfolders. Copy these subfolders onto the top level of your device, replacing any duplicate files.
+
+Additional content can be added simply by dragging and dropping an .epub document into the desired folder path. (IMPORTANT: The .Menu folder must alway be left empty.)
+
+### Setting the User Name
+Open the .adds folder and then the plato folder on the device. Locate and open the Settings file in a text editor.
+
+Under the “[home]” section (line 75), replace the welcome name with the user name, leaving the quotes around it. Save the file and eject the device.
 
 ---
 
@@ -102,8 +90,6 @@ To add a new top-level library: also add it to `Settings.toml` under `[[librarie
 AGPL-3.0, inherited from upstream Plato. Any redistributed binary built from this source must be accompanied by the corresponding source.
 
 ---
-
-## Acknowledgements
 
 - [Plato](https://github.com/baskerville/plato) by Bastien Dejean
 - The Sangala Reader Initiative
